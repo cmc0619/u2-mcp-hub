@@ -1450,6 +1450,32 @@ def remove_role(ctx: AdminContext, role_id: int, *, actor: User) -> None:
     _audit(ctx, actor, "role.delete", params={"name": role.name})
 
 
+def delete_group(ctx: AdminContext, group_id: int, *, actor: User) -> None:
+    """Delete a group with its grants; it comes back, with no access, if a sign-in names it.
+
+    Raises:
+        Refused: gone
+    """
+    group = ctx.store.get_group(group_id)
+    if group is None:
+        raise Refused("gone")
+    try:
+        grants = ctx.store.delete_group(group_id)
+    except StoreError as exc:
+        raise Refused("gone") from exc
+    _audit(
+        ctx,
+        actor,
+        "group.delete",
+        params={
+            "group_id": group_id,
+            "external_id": group.external_id,
+            "label": group.label,
+            "grants_removed": grants,
+        },
+    )
+
+
 def set_group_label(ctx: AdminContext, group_id: int, label: str, *, actor: User) -> None:
     """Name a group for admins; blank shows the identity provider's value.
 

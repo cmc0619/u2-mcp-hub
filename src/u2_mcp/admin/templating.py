@@ -20,6 +20,7 @@ from .sso_services import groups_visible
 # a link cannot put words of its own on an admin page.
 NOTICES: dict[str, str] = {
     "saved": "Saved.",
+    "group_deleted": "Group deleted.",
     "deleted": "Deleted.",
     "disconnected": "Sessions closed.",
     "signed_out": "You are signed out.",

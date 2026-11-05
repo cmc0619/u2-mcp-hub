@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.routing import Route
 
 from ..permissions import PERMISSIONS, TOOL_PERMISSIONS, WRITE_PERMISSIONS
-from ..store.models import Group, Role
-from ..store.repo import StaleEdit
+from ..store.models import Connection, Group, Role
+from ..store.repo import StaleEdit, Store
 from .problems import Refused, with_query
 from .routes_grants import form_int, grant_editor
-from .security import admin_only, read_form
-from .services import ValidationFailed, clone_role, remove_role, save_role, set_group_label
+from .security import admin_only, read_form, safe_next
+from .services import (
+    ValidationFailed,
+    clone_role,
+    delete_group,
+    remove_role,
+    save_role,
+    set_group_label,
+)
 from .templating import admin_context, render
 
 TOOLS_BY_PERMISSION = {
@@ -39,27 +48,70 @@ def _redirect(url: str) -> RedirectResponse:
     return RedirectResponse(url, status_code=303)
 
 
-@admin_only
-async def list_groups(request: Request) -> Response:
-    """Groups seen at sign-in."""
-    store = admin_context(request).store
-    groups = store.list_groups()
+_UNSEEN_DAYS = ("30", "90", "180")
+_DAY = 86400
+
+
+_NO_PROVIDER = "-"  # the filter value for groups with no issuer
+
+
+def _grant_lookup(store: Store) -> Callable[[Group], list[tuple[Connection, str]]]:
+    """Load connections and roles once; the result gives a group's grants by connection name."""
     connections = {c.id: c for c in store.list_connections()}
     roles = {r.id: r.name for r in store.list_roles()}
-    rows = []
-    for group in groups:
+
+    def grants_of(group: Group) -> list[tuple[Connection, str]]:
         grants = [
             (connections[g.connection_id], roles.get(g.role_id, "?"))
             for g in store.grants_for_subject("group", group.id)
             if g.connection_id in connections
         ]
-        rows.append((group, sorted(grants, key=lambda pair: pair[0].name.lower())))
+        return sorted(grants, key=lambda pair: pair[0].name.lower())
+
+    return grants_of
+
+
+@admin_only
+async def list_groups(request: Request) -> Response:
+    """Groups seen at sign-in, filtered by text, access, last seen and provider."""
+    store = admin_context(request).store
+    query = request.query_params
+    text = query.get("q", "").strip().lower()
+    access = query.get("access", "")
+    unseen = query.get("unseen", "")
+    provider = query.get("provider", "")
+    groups = store.list_groups()
+    providers = sorted({g.issuer or "" for g in groups})
+    now = store.clock()
+    grants_of = _grant_lookup(store)
+    rows = []
+    for group in groups:
+        grants = grants_of(group)
+        if (
+            text
+            and text not in (group.label or "").lower()
+            and text not in group.external_id.lower()
+        ):
+            continue
+        if (access == "with" and not grants) or (access == "none" and grants):
+            continue
+        if unseen in _UNSEEN_DAYS and (group.last_seen_at or 0) > now - int(unseen) * _DAY:
+            continue
+        if len(providers) > 1 and provider and (group.issuer or _NO_PROVIDER) != provider:
+            continue
+        rows.append((group, grants))
+    back = request.url.path + ("?" + request.url.query if request.url.query else "")
     return render(
         request,
         "groups/list.html",
         rows=rows,
+        filters=dict(query),
+        providers=providers,
+        no_provider=_NO_PROVIDER,
+        unseen_days=_UNSEEN_DAYS,
+        back=back,
         # The provider tells groups apart only when there is more than one.
-        several_providers=len({g.issuer for g in groups}) > 1,
+        several_providers=len(providers) > 1,
     )
 
 
@@ -82,6 +134,33 @@ def _group_page(request: Request, group: Group, errors: dict[str, str], status: 
 async def group_detail(request: Request) -> Response:
     """A group's label and grants."""
     return _group_page(request, _group_or_404(request), {}, 200)
+
+
+@admin_only
+async def group_delete_confirm(request: Request) -> Response:
+    """Show what goes with a group that has access, and ask first."""
+    group = _group_or_404(request)
+    store = admin_context(request).store
+    return render(
+        request,
+        "groups/delete.html",
+        group=group,
+        grants=_grant_lookup(store)(group),
+        back=safe_next(request.query_params.get("next") or "/admin/groups"),
+    )
+
+
+@admin_only
+async def group_delete(request: Request) -> Response:
+    """Delete a group and its grants."""
+    data = await read_form(request)
+    group = _group_or_404(request)
+    back = safe_next(str(data.get("next", "")) or "/admin/groups")
+    try:
+        delete_group(admin_context(request), group.id, actor=request.state.user)
+    except Refused as refused:
+        return _redirect(with_query(back, problem=refused.code))
+    return _redirect(with_query(back, notice="group_deleted"))
 
 
 @admin_only
@@ -224,6 +303,8 @@ routes = [
     Route("/groups", list_groups, methods=["GET"]),
     Route("/groups/{id:id}", group_detail, methods=["GET"]),
     Route("/groups/{id:id}", group_save, methods=["POST"]),
+    Route("/groups/{id:id}/delete", group_delete_confirm, methods=["GET"]),
+    Route("/groups/{id:id}/delete", group_delete, methods=["POST"]),
     Route("/roles", list_roles, methods=["GET"]),
     Route("/roles/{id:id}", role_detail, methods=["GET"]),
     Route("/roles/{id:id}", role_save, methods=["POST"]),

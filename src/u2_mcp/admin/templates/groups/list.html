@@ -2,19 +2,51 @@
 {% block title %}Groups · u2-mcp admin{% endblock %}
 {% block content %}
 <h1>Groups</h1>
-<p class="hint">Groups appear here the first time someone signs in through company sign-in with them. Give each a label; its access is listed under it.</p>
+<p class="hint">Groups appear here the first time someone signs in through company sign-in with them. Last seen is the latest sign-in that carried the group: one deleted in your directory stops being seen. A deleted group comes back, with no access, if a sign-in names it again.</p>
+<form method="get" action="/admin/groups" class="actions"
+      hx-get="/admin/groups" hx-target="#groups" hx-select="#groups" hx-swap="outerHTML"
+      hx-trigger="input changed delay:300ms from:#g-q, change" hx-push-url="true">
+  <label for="g-q">Search</label>
+  <input id="g-q" type="text" name="q" value="{{ filters.get('q', '') }}">
+  <label for="g-access">Access</label>
+  <select id="g-access" name="access">
+    {% for v, l in [("", "Any"), ("with", "Has access"), ("none", "No access")] %}<option value="{{ v }}" {% if filters.get('access', '') == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  <label for="g-unseen">Last seen</label>
+  <select id="g-unseen" name="unseen">
+    <option value="">Any time</option>
+    {% for d in unseen_days %}<option value="{{ d }}" {% if filters.get('unseen', '') == d %}selected{% endif %}>Not in {{ d }} days</option>{% endfor %}
+  </select>
+  {% if several_providers %}
+  <label for="g-provider">Provider</label>
+  <select id="g-provider" name="provider">
+    <option value="">Any</option>
+    {% for p in providers %}<option value="{{ p or no_provider }}" {% if filters.get('provider', '') == (p or no_provider) %}selected{% endif %}>{{ p or "(none)" }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <noscript><button type="submit" class="secondary">Filter</button></noscript>
+</form>
+<div id="groups">
 {% if rows %}
 <table class="group-list">
-  <thead><tr><th>Group</th><th>Value from the identity provider</th>{% if several_providers %}<th>Identity provider</th>{% endif %}</tr></thead>
+  <thead><tr><th>Group</th><th>Value from the identity provider</th>{% if several_providers %}<th>Identity provider</th>{% endif %}<th>Last seen</th><th class="row-action"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
   {% for g, grants in rows %}
-    <tr class="group-row"><td><a href="/admin/groups/{{ g.id }}">{{ g.label or g.external_id }}</a></td><td><code>{{ g.external_id }}</code></td>{% if several_providers %}<td><code>{{ g.issuer or "" }}</code></td>{% endif %}</tr>
-    <tr class="group-grants"><td colspan="{{ 3 if several_providers else 2 }}">
+    <tr class="group-row"><td><a href="/admin/groups/{{ g.id }}">{{ g.label or g.external_id }}</a></td><td><code>{{ g.external_id }}</code></td>{% if several_providers %}<td><code>{{ g.issuer or "" }}</code></td>{% endif %}<td>{{ g.last_seen_at | when }}</td>
+      <td class="row-action">{% if grants %}<a class="button danger small" href="/admin/groups/{{ g.id }}/delete?next={{ back | urlencode }}">Delete…<span class="visually-hidden"> {{ g.label or g.external_id }}</span></a>
+        {% else %}<form method="post" action="/admin/groups/{{ g.id }}/delete" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="next" value="{{ back }}">
+          <button type="submit" class="danger small">Delete<span class="visually-hidden"> {{ g.label or g.external_id }}</span></button>
+        </form>{% endif %}</td></tr>
+    <tr class="group-grants"><td colspan="{{ 5 if several_providers else 4 }}">
       {% if grants %}<ul>{% for connection, role in grants %}<li><a href="/admin/connections/{{ connection.id }}">{{ connection.name }}</a>: {{ role }}</li>{% endfor %}</ul>
       {% else %}<span class="hint">No access</span>{% endif %}
     </td></tr>
   {% endfor %}
   </tbody>
 </table>
+{% elif filters %}<p>No groups match.</p>
 {% else %}<p>No groups seen yet.</p>{% endif %}
+</div>
 {% endblock %}

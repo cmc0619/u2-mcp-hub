@@ -61,6 +61,8 @@ class Group:
     issuer: str | None
     external_id: str
     label: str | None
+    # When a sign-in last carried the group; it stops when the group is gone upstream.
+    last_seen_at: float | None = None
 
 
 @dataclass(frozen=True)
