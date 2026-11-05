@@ -119,12 +119,25 @@ class TestService:
             delete_grant(ctx, grant.id, actor=admin)
         assert refused.value.code == "gone"
 
-    def test_a_group_grant_names_its_provider(self, ctx: AdminContext, admin: User) -> None:
-        """Two providers can both send "Developers"; the grant list tells them apart."""
+    @pytest.mark.parametrize(
+        ("issuers", "label"),
+        [
+            (["https://old-idp.example"], "Developers"),
+            (
+                ["https://old-idp.example", "https://new-idp.example"],
+                "Developers (https://old-idp.example)",
+            ),
+        ],
+    )
+    def test_a_group_grant_names_its_provider_only_among_several(
+        self, ctx: AdminContext, admin: User, issuers: list[str], label: str
+    ) -> None:
+        """Two providers can both send "Developers"; only then does the provider tell them apart."""
         connection_id = _connection(ctx)
-        user = ctx.store.get_or_create_sso_user("s", issuer="https://old-idp.example")
-        ctx.store.record_sso_login(user.id, ["Developers"])
-        group = ctx.store.list_groups()[0]
+        for issuer in issuers:
+            user = ctx.store.get_or_create_sso_user("s", issuer=issuer)
+            ctx.store.record_sso_login(user.id, ["Developers"])
+        group = next(g for g in ctx.store.list_groups() if g.issuer == issuers[0])
         save_grant(
             ctx,
             connection_id=connection_id,
@@ -136,7 +149,7 @@ class TestService:
 
         rows = grant_rows(ctx, connection_id=connection_id)
 
-        assert rows[0].subject_label == "Developers (https://old-idp.example)"
+        assert rows[0].subject_label == label
 
     def test_moving_a_per_user_connection_forgets_its_u2_logins(
         self, ctx: AdminContext, admin: User
