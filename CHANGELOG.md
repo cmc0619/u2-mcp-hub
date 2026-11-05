@@ -12,6 +12,7 @@ them are written up in [docs/hardening.md](docs/hardening.md).
 
 ### Added
 
+- Screenshots of every admin page in the README.
 - Groups can be found and deleted: a **Last seen** column, filters by text,
   access, last seen and (with more than one) provider, and **Delete** on every
   row. A group with access asks first and its grants go with it. Audited as
