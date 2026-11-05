@@ -180,3 +180,18 @@ def test_a_saved_address_names_the_token_resource_after_a_restart(
 
     assert resources == ["https://from-env.example", "https://saved-in-ui.example"]
     assert "https://saved-in-ui.example/admin/setup" in caplog.text
+
+
+def test_the_footer_names_the_version_for_signed_in_people_only(ctx: AdminContext) -> None:
+    from u2_mcp.passwords import hash_password
+    from u2_mcp.setup_code import finish_setup
+    from u2_mcp.version import running_version
+
+    from .helpers import PASSWORD, admin_client, sign_in
+
+    finish_setup(ctx.store)
+    ctx.store.add_local_user("ann", password_hash=hash_password(PASSWORD), is_admin=True)
+    with admin_client(ctx) as client:
+        assert "u2-mcp " + running_version() not in client.get("/admin/sign-in").text
+        sign_in(client)
+        assert "u2-mcp " + running_version() in client.get("/admin/connections").text

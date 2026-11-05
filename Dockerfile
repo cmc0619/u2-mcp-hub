@@ -16,6 +16,9 @@ COPY src ./src
 # uopy (Rocket's driver) is on PyPI, so this installs everything the server needs.
 RUN python -m venv --without-pip /opt/venv \
     && pip --python /opt/venv/bin/python install .
+# Stamp the commit for the admin footer, read from the context's .git files
+# (.dockerignore lets only HEAD and the refs through). Empty when there are none.
+RUN --mount=type=bind,source=.,target=/ctx /opt/venv/bin/python -m u2_mcp.version /ctx
 
 FROM python:3.12-slim AS release
 

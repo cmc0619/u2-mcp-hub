@@ -38,5 +38,6 @@
     {% if problem %}<p class="alert" role="alert">{{ problem }}</p>{% endif %}
     {% block content %}{% endblock %}
   </main>
+  {% if user %}<footer class="version">u2-mcp {{ running_version() }}</footer>{% endif %}
 </body>
 </html>

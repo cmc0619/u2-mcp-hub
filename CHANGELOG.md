@@ -12,6 +12,9 @@ them are written up in [docs/hardening.md](docs/hardening.md).
 
 ### Added
 
+- The admin site's footer shows which code is running to signed-in people:
+  `u2-mcp 0.9.0 · 1a2b3c4`. The Docker build stamps the commit, read from the
+  build context's .git files (only HEAD and the refs get past .dockerignore).
 - The Groups page lists each group's access (connection and role) on an indented
   line under it, and shows the identity provider only when groups come from more
   than one.
