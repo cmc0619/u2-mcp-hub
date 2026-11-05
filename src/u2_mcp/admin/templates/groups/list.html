@@ -21,7 +21,7 @@
   <label for="g-provider">Provider</label>
   <select id="g-provider" name="provider">
     <option value="">Any</option>
-    {% for p in providers %}<option value="{{ p }}" {% if filters.get('provider', '') == p %}selected{% endif %}>{{ p or "(none)" }}</option>{% endfor %}
+    {% for p in providers %}<option value="{{ p or no_provider }}" {% if filters.get('provider', '') == (p or no_provider) %}selected{% endif %}>{{ p or "(none)" }}</option>{% endfor %}
   </select>
   {% endif %}
   <noscript><button type="submit" class="secondary">Filter</button></noscript>

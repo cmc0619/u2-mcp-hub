@@ -248,3 +248,16 @@ class TestDeletingGroups:
 
         assert f"<code>{shown}</code>" in page
         assert f"<code>{hidden}</code>" not in page
+
+    def test_groups_with_no_provider_can_be_picked_apart_from_any(
+        self, client: TestClient, ctx: AdminContext
+    ) -> None:
+        ids = self._groups(ctx)
+        with ctx.store.locked() as conn:
+            conn.execute("UPDATE groups SET issuer = NULL WHERE id = ?", (ids["old"],))
+
+        page = client.get("/admin/groups?provider=-").text
+
+        assert "<code>old</code>" in page
+        assert "<code>eng</code>" not in page
+        assert '<option value="-" selected>' in page

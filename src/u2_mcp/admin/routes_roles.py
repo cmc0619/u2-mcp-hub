@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
@@ -50,16 +52,23 @@ _UNSEEN_DAYS = ("30", "90", "180")
 _DAY = 86400
 
 
-def _group_grants(store: Store, group: Group) -> list[tuple[Connection, str]]:
-    """A group's grants as (connection, role name), by connection name."""
+_NO_PROVIDER = "-"  # the filter value for groups with no issuer
+
+
+def _grant_lookup(store: Store) -> Callable[[Group], list[tuple[Connection, str]]]:
+    """Load connections and roles once; the result gives a group's grants by connection name."""
     connections = {c.id: c for c in store.list_connections()}
     roles = {r.id: r.name for r in store.list_roles()}
-    grants = [
-        (connections[g.connection_id], roles.get(g.role_id, "?"))
-        for g in store.grants_for_subject("group", group.id)
-        if g.connection_id in connections
-    ]
-    return sorted(grants, key=lambda pair: pair[0].name.lower())
+
+    def grants_of(group: Group) -> list[tuple[Connection, str]]:
+        grants = [
+            (connections[g.connection_id], roles.get(g.role_id, "?"))
+            for g in store.grants_for_subject("group", group.id)
+            if g.connection_id in connections
+        ]
+        return sorted(grants, key=lambda pair: pair[0].name.lower())
+
+    return grants_of
 
 
 @admin_only
@@ -74,9 +83,10 @@ async def list_groups(request: Request) -> Response:
     groups = store.list_groups()
     providers = sorted({g.issuer or "" for g in groups})
     now = store.clock()
+    grants_of = _grant_lookup(store)
     rows = []
     for group in groups:
-        grants = _group_grants(store, group)
+        grants = grants_of(group)
         if (
             text
             and text not in (group.label or "").lower()
@@ -87,7 +97,7 @@ async def list_groups(request: Request) -> Response:
             continue
         if unseen in _UNSEEN_DAYS and (group.last_seen_at or 0) > now - int(unseen) * _DAY:
             continue
-        if len(providers) > 1 and provider and (group.issuer or "") != provider:
+        if len(providers) > 1 and provider and (group.issuer or _NO_PROVIDER) != provider:
             continue
         rows.append((group, grants))
     back = request.url.path + ("?" + request.url.query if request.url.query else "")
@@ -97,6 +107,7 @@ async def list_groups(request: Request) -> Response:
         rows=rows,
         filters=dict(query),
         providers=providers,
+        no_provider=_NO_PROVIDER,
         unseen_days=_UNSEEN_DAYS,
         back=back,
         # The provider tells groups apart only when there is more than one.
@@ -134,7 +145,7 @@ async def group_delete_confirm(request: Request) -> Response:
         request,
         "groups/delete.html",
         group=group,
-        grants=_group_grants(store, group),
+        grants=_grant_lookup(store)(group),
         back=safe_next(request.query_params.get("next") or "/admin/groups"),
     )
 

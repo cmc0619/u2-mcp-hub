@@ -25,6 +25,9 @@ from u2_mcp.config import U2Config
 from u2_mcp.connection import ConnectionManager
 
 _passwords._hasher = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1)
+
+# Importing uopy makes ./logs, and parallel workers race to make it: make it first.
+os.makedirs("logs", exist_ok=True)
 _passwords._dummy_hash.cache_clear()
 
 
