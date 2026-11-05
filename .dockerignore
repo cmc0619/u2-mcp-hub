@@ -19,3 +19,4 @@ build
 .env.*
 !.env.example
 !.env.sample
+docs/

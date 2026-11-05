@@ -33,6 +33,149 @@ u2-mcp is an MCP server for the Pick/MultiValue family. It runs as one team serv
 
 **New to MCP?** See [What is MCP?](docs/what-is-mcp.md).
 
+## Screenshots
+
+![Groups page](docs/screenshots/groups.png)
+
+<details>
+<summary>Setup wizard</summary>
+
+**Step 1: admin account**
+
+![Step 1: admin account](docs/screenshots/setup-1-admin.png)
+
+**Step 2: first connection**
+
+![Step 2: first connection](docs/screenshots/setup-2-connection.png)
+
+**Step 3: server address**
+
+![Step 3: server address](docs/screenshots/setup-3-server-address.png)
+
+**Step 4: company sign-in (optional)**
+
+![Step 4: company sign-in (optional)](docs/screenshots/setup-4-company-sign-in.png)
+
+**Step 5: done**
+
+![Step 5: done](docs/screenshots/setup-5-done.png)
+
+</details>
+
+<details>
+<summary>Connections</summary>
+
+**All connections**
+
+![All connections](docs/screenshots/connections.png)
+
+**A connection, its live sessions and who has access**
+
+![A connection, its live sessions and who has access](docs/screenshots/connection.png)
+
+**Add a connection**
+
+![Add a connection](docs/screenshots/connection-new.png)
+
+</details>
+
+<details>
+<summary>People</summary>
+
+**Users**
+
+![Users](docs/screenshots/users.png)
+
+**A person**
+
+![A person](docs/screenshots/user.png)
+
+**A person's effective access, and where it comes from**
+
+![A person's effective access, and where it comes from](docs/screenshots/user-access.png)
+
+**Add a local user**
+
+![Add a local user](docs/screenshots/user-new.png)
+
+</details>
+
+<details>
+<summary>Groups</summary>
+
+**Groups from company sign-in, with their access and when each was last seen**
+
+![Groups from company sign-in, with their access and when each was last seen](docs/screenshots/groups.png)
+
+**Filtered to groups not seen in 90 days that have no access**
+
+![Filtered to groups not seen in 90 days that have no access](docs/screenshots/groups-filtered.png)
+
+**A group**
+
+![A group](docs/screenshots/group.png)
+
+**Deleting a group that has access asks first**
+
+![Deleting a group that has access asks first](docs/screenshots/group-delete.png)
+
+</details>
+
+<details>
+<summary>Roles</summary>
+
+**Built-in and custom roles**
+
+![Built-in and custom roles](docs/screenshots/roles.png)
+
+**A role's permissions**
+
+![A role's permissions](docs/screenshots/role.png)
+
+</details>
+
+<details>
+<summary>Knowledge</summary>
+
+**Pick a server and account**
+
+![Pick a server and account](docs/screenshots/knowledge.png)
+
+**Its saved topics**
+
+![Its saved topics](docs/screenshots/knowledge-topics.png)
+
+**Review or edit a topic**
+
+![Review or edit a topic](docs/screenshots/knowledge-topic.png)
+
+</details>
+
+<details>
+<summary>Audit, settings and your own access</summary>
+
+**Audit log with filters and CSV export**
+
+![Audit log with filters and CSV export](docs/screenshots/audit.png)
+
+**Settings**
+
+![Settings](docs/screenshots/settings.png)
+
+**My access: connections, tokens and how to connect a client**
+
+![My access: connections, tokens and how to connect a client](docs/screenshots/me.png)
+
+**Change your password**
+
+![Change your password](docs/screenshots/account-password.png)
+
+**Sign-in**
+
+![Sign-in](docs/screenshots/sign-in.png)
+
+</details>
+
 ## Quick start (Docker)
 
 You need Docker with the compose plugin, on a host that can reach your U2 servers.
