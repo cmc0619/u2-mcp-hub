@@ -100,6 +100,25 @@ class TestPages:
 
         assert "Engineering" in client.get("/admin/groups").text
 
+    def test_each_group_lists_its_access_under_it(
+        self, client: TestClient, ctx: AdminContext
+    ) -> None:
+        user = ctx.store.get_or_create_sso_user("s", issuer="https://idp.example")
+        ctx.store.record_sso_login(user.id, ["eng", "ops"])
+        eng = next(g for g in ctx.store.list_groups() if g.external_id == "eng")
+        prod = ctx.store.add_connection(name="Prod", host="h", port=1, service="uvcs", account="A")
+        viewer = ctx.store.get_role_by_name("Viewer")
+        assert viewer is not None
+        ctx.store.add_grant(
+            connection_id=prod.id, subject_type="group", subject_id=eng.id, role_id=viewer.id
+        )
+
+        page = client.get("/admin/groups").text
+
+        assert f'href="/admin/connections/{prod.id}">Prod</a>: Viewer' in page
+        assert "No access" in page  # ops has none
+        assert "https://idp.example" not in page  # one provider: nothing to tell apart
+
     def test_groups_show_the_provider_that_named_them(
         self, client: TestClient, ctx: AdminContext
     ) -> None:

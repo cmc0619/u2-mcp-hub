@@ -73,3 +73,7 @@ h2 { margin: 1.5rem 0 .6rem; }
 .grant-add .actions { margin-top: 1.75rem; }
 /* In a grid form, the buttons take the next free cell, beside the last field. */
 .form-grid > .actions { grid-column: auto; margin-top: 1.75rem; }
+/* Groups: each group's grants on an indented line under it. */
+.group-list tr.group-row td { border-bottom: none; padding-bottom: .1rem; }
+.group-list tr.group-grants td { padding: 0 .75rem .6rem 2rem; font-size: .9rem; }
+.group-list tr.group-grants ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; }

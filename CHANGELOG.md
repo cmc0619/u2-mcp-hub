@@ -12,6 +12,9 @@ them are written up in [docs/hardening.md](docs/hardening.md).
 
 ### Added
 
+- The Groups page lists each group's access (connection and role) on an indented
+  line under it, and shows the identity provider only when groups come from more
+  than one.
 - Denser admin layout: buttons beside their field, forms with several fields
   laid out side by side, Test / Save / Remove in one row on My access, and the
   company sign-in buttons in one row on Settings.
