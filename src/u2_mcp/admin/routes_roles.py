@@ -42,7 +42,25 @@ def _redirect(url: str) -> RedirectResponse:
 @admin_only
 async def list_groups(request: Request) -> Response:
     """Groups seen at sign-in."""
-    return render(request, "groups/list.html", groups=admin_context(request).store.list_groups())
+    store = admin_context(request).store
+    groups = store.list_groups()
+    connections = {c.id: c for c in store.list_connections()}
+    roles = {r.id: r.name for r in store.list_roles()}
+    rows = []
+    for group in groups:
+        grants = [
+            (connections[g.connection_id], roles.get(g.role_id, "?"))
+            for g in store.grants_for_subject("group", group.id)
+            if g.connection_id in connections
+        ]
+        rows.append((group, sorted(grants, key=lambda pair: pair[0].name.lower())))
+    return render(
+        request,
+        "groups/list.html",
+        rows=rows,
+        # The provider tells groups apart only when there is more than one.
+        several_providers=len({g.issuer for g in groups}) > 1,
+    )
 
 
 def _group_page(request: Request, group: Group, errors: dict[str, str], status: int) -> Response:
@@ -53,6 +71,7 @@ def _group_page(request: Request, group: Group, errors: dict[str, str], status: 
         status_code=status,
         group=group,
         errors=errors,
+        several_providers=len({g.issuer for g in ctx.store.list_groups()}) > 1,
         **grant_editor(
             ctx, return_to=f"/admin/groups/{group.id}", subject_type="group", subject_id=group.id
         ),
