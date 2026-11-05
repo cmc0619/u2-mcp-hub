@@ -67,7 +67,7 @@
   {% if editor.groups and groups_visible %}
   <div class="field"><label for="g-group">Group</label>
     <select id="g-group" name="group_id">
-      {% for g in editor.groups %}<option value="{{ g.id }}">{{ g.label or g.external_id }}{% if g.issuer %} ({{ g.issuer }}){% endif %}</option>{% endfor %}
+      {% for g in editor.groups %}<option value="{{ g.id }}">{{ g.label or g.external_id }}{% if several_providers and g.issuer %} ({{ g.issuer }}){% endif %}</option>{% endfor %}
     </select></div>
   {% endif %}
   {% endif %}

@@ -13,7 +13,7 @@ import io
 import json
 import re
 import secrets
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -559,6 +559,14 @@ class GrantRow:
     role: Role
 
 
+def several_providers(groups: Iterable[Group]) -> bool:
+    """Whether groups come from more than one identity provider.
+
+    Only then does a group's provider tell it apart from another, so only then is it shown.
+    """
+    return len({g.issuer or "" for g in groups}) > 1
+
+
 def _subject_label(ctx: AdminContext, subject_type: str, subject_id: int | None) -> str | None:
     """A subject's name, or None when it does not exist."""
     if subject_type == "everyone":
@@ -567,11 +575,12 @@ def _subject_label(ctx: AdminContext, subject_type: str, subject_id: int | None)
         user = ctx.store.get_user(subject_id)
         return user.label if user else None
     if subject_type == "group" and subject_id is not None:
-        group = next((g for g in ctx.store.list_groups() if g.id == subject_id), None)
+        groups = ctx.store.list_groups()
+        group = next((g for g in groups if g.id == subject_id), None)
         if group is None:
             return None
         name = group.label or group.external_id
-        return f"{name} ({group.issuer})" if group.issuer else name
+        return f"{name} ({group.issuer})" if group.issuer and several_providers(groups) else name
     return None
 
 

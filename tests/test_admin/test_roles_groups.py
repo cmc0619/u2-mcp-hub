@@ -118,6 +118,7 @@ class TestPages:
         assert f'href="/admin/connections/{prod.id}">Prod</a>: Viewer' in page
         assert "No access" in page  # ops has none
         assert "https://idp.example" not in page  # one provider: nothing to tell apart
+        assert "https://idp.example" not in client.get(f"/admin/connections/{prod.id}").text
 
     def test_groups_show_the_provider_that_named_them(
         self, client: TestClient, ctx: AdminContext

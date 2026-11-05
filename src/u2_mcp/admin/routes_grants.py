@@ -15,7 +15,14 @@ from .context import AdminContext
 from .ids import parse_id
 from .problems import Refused, with_query
 from .security import admin_only, read_form, safe_next
-from .services import EVERYONE_WARNING, delete_grant, grant_rows, save_grant, update_grant
+from .services import (
+    EVERYONE_WARNING,
+    delete_grant,
+    grant_rows,
+    save_grant,
+    several_providers,
+    update_grant,
+)
 from .templating import admin_context
 
 
@@ -51,6 +58,7 @@ def grant_editor(
         if connection is not None
         else grant_rows(ctx, subject_type=subject_type, subject_id=subject_id)
     )
+    groups = ctx.store.list_groups()
     editor = GrantEditor(
         return_to=return_to,
         connection=connection,
@@ -58,10 +66,15 @@ def grant_editor(
         subject_id=subject_id,
         roles=ctx.store.list_roles(),
         users=ctx.store.list_users(disabled=False),
-        groups=ctx.store.list_groups(),
+        groups=groups,
         connections=ctx.store.list_connections(),
     )
-    return {"grants": rows, "editor": editor, "everyone_warning": EVERYONE_WARNING}
+    return {
+        "grants": rows,
+        "editor": editor,
+        "everyone_warning": EVERYONE_WARNING,
+        "several_providers": several_providers(groups),
+    }
 
 
 def form_int(value: object) -> int | None:

@@ -123,7 +123,6 @@ def _group_page(request: Request, group: Group, errors: dict[str, str], status: 
         status_code=status,
         group=group,
         errors=errors,
-        several_providers=len({g.issuer for g in ctx.store.list_groups()}) > 1,
         **grant_editor(
             ctx, return_to=f"/admin/groups/{group.id}", subject_type="group", subject_id=group.id
         ),
