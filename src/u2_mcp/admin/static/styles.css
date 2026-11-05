@@ -80,4 +80,5 @@ h2 { margin: 1.5rem 0 .6rem; }
 /* Which code is running, for whoever is testing a deploy. */
 footer.version { position: fixed; right: .75rem; bottom: .5rem; margin: 0;
   padding: .15rem .5rem; color: var(--muted); font-size: .75rem;
-  background: var(--wash); border-radius: 4px; pointer-events: none; }
+  background: var(--wash); border-radius: 4px; pointer-events: none;
+  white-space: nowrap; text-align: right; }
