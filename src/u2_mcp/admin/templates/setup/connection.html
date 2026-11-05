@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Setup: first connection · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Set up u2-mcp</h1>
+{% include "setup/_steps.html" %}
+<h2>First connection</h2>
+<p>The U2 server and account people will reach through their AI assistant. Test it before you continue.</p>
+{% include "partials/connection_form.html" %}
+{% endblock %}

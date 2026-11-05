@@ -1,0 +1,8 @@
+<table>
+  <tbody>
+    <tr><th>Admin account</th><td>Created</td></tr>
+    <tr><th>First connection</th><td>{% if connection %}{{ connection.name }} ({{ connection.host }}, {{ connection.account }}){% else %}Not set{% endif %}</td></tr>
+    <tr><th>Server address</th><td>{{ public_url }}{% if warning %}<p class="warning">{{ warning }}</p>{% endif %}</td></tr>
+    <tr><th>Company sign-in (SSO)</th><td>{% if sso %}{{ sso.provider_label }}: {{ sso.discovery_url }}{% else %}Not set up. Add it under Settings.{% endif %}</td></tr>
+  </tbody>
+</table>

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Setup: done · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Set up u2-mcp</h1>
+{% include "setup/_steps.html" %}
+<h2>Done</h2>
+{% include "partials/setup_checklist.html" %}
+<h3>VS Code</h3>
+<p>Add this to <code>.vscode/mcp.json</code> in a project, or to your user MCP configuration:</p>
+<pre>{
+  "servers": {
+    "u2": {
+      "type": "http",
+      "url": "{{ public_url }}/"
+    }
+  }
+}</pre>
+<p class="warning">Nobody can use this connection from an AI assistant until it has a grant. After you finish, open the connection and add one under Access. Admins need a grant too: being an admin gives no data access. Each person then creates a personal access token on My access, which also shows the configuration for their MCP client.</p>
+<form method="post" action="/admin/setup/done" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Finish setup</button>
+</form>
+{% endblock %}

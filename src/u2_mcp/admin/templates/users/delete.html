@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ person.label }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="/admin/users/{{ person.id }}">Back to {{ person.label }}</a></p>
+<h1>Delete {{ person.label }}</h1>
+<p>This cannot be undone. Deleting this person removes:</p>
+<ul>
+  <li>{{ summary.tokens }} token{{ "" if summary.tokens == 1 else "s" }} (deleted)</li>
+  <li>{{ summary.grants }} grant{{ "" if summary.grants == 1 else "s" }} given to them</li>
+  <li>{{ summary.u2_logins }} personal U2 login{{ "" if summary.u2_logins == 1 else "s" }}, and any live U2 sessions on them</li>
+  <li>{{ summary.sessions }} sign-in session{{ "" if summary.sessions == 1 else "s" }}</li>
+</ul>
+{% if person.kind == "sso" %}<p class="warning">To keep them out, disable them instead. Deleting doesn't stop them signing in again with company sign-in, and they then get any access their groups (or an everyone grant) give.</p>{% endif %}
+<p class="hint">Audit history stays, and the deletion is recorded with their name.</p>
+<form method="post" action="/admin/users/{{ person.id }}/delete" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="danger">Delete {{ person.label }}</button>
+  <a class="button secondary" href="/admin/users/{{ person.id }}">Cancel</a>
+</form>
+{% endblock %}

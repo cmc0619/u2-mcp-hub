@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Connections · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Connections</h1>
+<p><a class="button" href="/admin/connections/new">Add a connection</a></p>
+{% if connections %}
+<table>
+  <thead><tr><th>Name</th><th>Server</th><th>Account</th><th>Logins</th><th>Read-only</th><th>Enabled</th><th>Live sessions</th></tr></thead>
+  <tbody>
+  {% for c in connections %}
+    <tr>
+      <td><a href="/admin/connections/{{ c.id }}">{{ c.name }}</a></td>
+      <td>{{ c.host }}:{{ c.port }} ({{ c.service }})</td>
+      <td>{{ c.account }}</td>
+      <td>{{ "Shared" if c.login_mode == "shared" else "Per person" }}</td>
+      <td>{{ "Yes" if c.read_only else "No" }}</td>
+      <td>{{ "Yes" if c.enabled else "No" }}</td>
+      <td>{{ sessions[c.id] }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No connections yet.</p>
+{% endif %}
+{% endblock %}

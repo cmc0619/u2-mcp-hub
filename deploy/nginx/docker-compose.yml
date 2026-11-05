@@ -1,0 +1,53 @@
+# u2-mcp behind nginx. From the repository root:
+#   U2_SECRET_KEY=... U2_PUBLIC_URL=http://u2-mcp.example.com docker compose -f deploy/nginx/docker-compose.yml up -d
+# u2-mcp is not published: only nginx reaches it, from a fixed address, and that
+# address is the only one whose X-Forwarded-* headers u2-mcp believes.
+services:
+  u2-mcp:
+    image: ${U2_IMAGE:-u2-mcp:local}
+    build:
+      context: ../..
+      target: release
+    restart: unless-stopped
+    environment:
+      U2_SECRET_KEY: ${U2_SECRET_KEY:?Set U2_SECRET_KEY (32+ random characters)}
+      # U2_PUBLIC_URL and U2_TRUSTED_PROXIES go together. The public URL is what
+      # people type (no trailing slash); it builds sign-in redirects and decides
+      # whether cookies are Secure. It must match the server block nginx serves:
+      # http://<host> with default.conf's port-80 block as shipped, https://<host>
+      # once you switch to its TLS block. An https address over plain http makes the
+      # browser drop the Secure sign-in cookie, so the first admin cannot be created.
+      # It has no default for that reason. The trusted proxy is the proxy
+      # container's own address (172.31.250.2/32 on the edge network below): only
+      # a request that arrives from it may carry X-Forwarded-* headers. Change both
+      # if you change the network.
+      U2_PUBLIC_URL: ${U2_PUBLIC_URL:?Set U2_PUBLIC_URL to http://<host> (port-80 block) or https://<host> (TLS block)}
+      U2_TRUSTED_PROXIES: 172.31.250.2/32
+      U2_ADMIN_ALLOWED_IPS: ${U2_ADMIN_ALLOWED_IPS:-}
+    volumes:
+      - u2-data:/data
+    networks:
+      edge:
+        ipv4_address: 172.31.250.3
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [u2-mcp]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      edge:
+        ipv4_address: 172.31.250.2
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  u2-data:

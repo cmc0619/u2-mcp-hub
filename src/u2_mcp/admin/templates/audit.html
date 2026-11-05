@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Audit · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Audit</h1>
+<form method="get" action="/admin/audit" class="actions"
+      hx-get="/admin/audit" hx-target="#audit-results" hx-select="#audit-results" hx-swap="outerHTML"
+      hx-trigger="change, input changed delay:300ms from:#a-action" hx-push-url="true">
+  <label for="a-user">Who</label>
+  <select id="a-user" name="user"><option value="">Anyone</option>
+    {% for u in users %}<option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>{{ u.label }}</option>{% endfor %}</select>
+  <label for="a-connection">Connection</label>
+  <select id="a-connection" name="connection"><option value="">Any</option>
+    {% for c in connections %}<option value="{{ c.id }}" {% if filters.connection_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  <label for="a-kind">Kind</label>
+  <select id="a-kind" name="kind">
+    {% for v, l in [("", "Any"), ("tool", "Tool calls"), ("admin", "Admin changes"), ("auth", "Sign-ins")] %}<option value="{{ v }}" {% if (filters.kind or "") == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <label for="a-action">Action starts with</label>
+  <input id="a-action" type="text" name="action" value="{{ filters.action }}">
+  <label for="a-from">From (UTC)</label><input id="a-from" type="date" name="from" value="{{ filters.date_from }}">
+  <label for="a-to">To (UTC)</label><input id="a-to" type="date" name="to" value="{{ filters.date_to }}">
+  <noscript><button type="submit" class="secondary">Filter</button></noscript>
+</form>
+<div id="audit-results">
+<p><a href="/admin/audit.csv{{ '?' ~ query if query else '' }}">Export CSV</a> <span class="hint">All matching rows. The page shows the newest 200.</span></p>
+{% with recent = entries %}{% include "partials/audit_rows.html" %}{% endwith %}
+</div>
+{% endblock %}

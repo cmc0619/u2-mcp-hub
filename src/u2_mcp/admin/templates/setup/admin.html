@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Setup: admin account · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Set up u2-mcp</h1>
+{% include "setup/_steps.html" %}
+<h2>Admin account</h2>
+{% if created %}
+<p>The admin account is created{% if user %} ({{ user.label }}){% endif %}.</p>
+<p><a class="button" href="/admin/setup/connection">Next: first connection</a></p>
+{% else %}
+<p>This local account is the break-glass admin: it works even when company sign-in does not.</p>
+{% include "partials/local_user_form.html" %}
+{% endif %}
+{% endblock %}

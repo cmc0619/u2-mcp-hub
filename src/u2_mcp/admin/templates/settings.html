@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "partials/fields.html" import text %}
+{% block title %}Settings · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<h2>Server address</h2>
+{% include "partials/server_address_form.html" %}
+
+<h2 id="sign-in">Company sign-in</h2>
+{% with sso_clear_inline=true %}{% include "partials/sso_form.html" %}{% endwith %}
+{% if sso %}
+<form id="sso-clear-form" method="post" action="/admin/settings/sso/clear" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+</form>
+{% endif %}
+
+<h2>Token policy</h2>
+<form method="post" action="/admin/settings/tokens">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field-row">
+    {{ text("token_max_days", "Longest token lifetime, in days", token_max_days, token_errors, type="number", hint="Blank means no limit. New tokens default to 90 days, or this limit if lower. Existing tokens keep their expiry.") }}
+    <button type="submit">Save token policy</button>
+  </div>
+</form>
+
+<h2>Sign-in for people who are not admins</h2>
+<p>Sign-in to this site for people who are not admins is <strong>{{ "on" if non_admin_sign_in else "off" }}</strong>, local and company sign-in alike. Off, they cannot use My access (their tokens, U2 logins and signed-in apps). Their MCP access is not affected, and admins can always sign in.</p>
+<form method="post" action="/admin/settings/non-admin-sign-in" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if non_admin_sign_in %}<button type="submit" name="enabled" value="off" class="secondary">Turn off sign-in for people who are not admins</button>
+  {% else %}<button type="submit" name="enabled" value="on" class="secondary">Turn on sign-in for people who are not admins</button>{% endif %}
+</form>
+
+<h2>Setup</h2>
+{% include "partials/setup_checklist.html" %}
+{% endblock %}

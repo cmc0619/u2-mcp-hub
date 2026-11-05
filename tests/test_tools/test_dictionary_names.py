@@ -1,0 +1,89 @@
+"""Every dictionary item comes back, whatever its name looks like.
+
+`list_dictionary` once cut item names out of the text a `LIST` command prints,
+and dropped `LIST.PRICE`, `LIST.COST` and `LISTED.DATE` as if they were the
+command's own header. It now reads the keys from a select list, so a name is
+never mistaken for printout.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from u2_mcp.tools.dictionary import list_dictionary
+
+
+class _StubFile:
+    """A dictionary file holding items whose names collide with the parser."""
+
+    def __init__(self, records: dict[str, str]) -> None:
+        self._records = records
+
+    def read(self, record_id: str) -> str:
+        if record_id not in self._records:
+            raise KeyError(record_id)
+        return self._records[record_id]
+
+
+class _StubManager:
+    """Answers the one selection and one open the tool makes."""
+
+    def __init__(self, records: dict[str, str]) -> None:
+        self._records = records
+
+    def select_ids(self, command: str, limit: int | None = None) -> tuple[list[str], bool]:
+        return sorted(self._records), True
+
+    def open_file(self, file_name: str) -> _StubFile:
+        return _StubFile(self._records)
+
+
+# Attribute mark, which separates a dictionary item's fields.
+AM = chr(254)
+
+
+def _item(field_number: str, heading: str) -> str:
+    """One D-type dictionary record."""
+    return AM.join(["D", field_number, "", heading, "10R", "S"])
+
+
+@pytest.fixture
+def product_dictionary(monkeypatch):
+    """A product dictionary whose names are ordinary and inconvenient."""
+    records = {
+        "DESCRIPTION": _item("1", "Description"),
+        "LIST.PRICE": _item("6", "List Price"),
+        "LIST.COST": _item("7", "List Cost"),
+        "LISTED.DATE": _item("8", "Listed"),
+        "STATUS": _item("9", "Status"),
+    }
+
+    manager = _StubManager(records)
+    monkeypatch.setattr("u2_mcp.tools.dictionary.get_connection_manager", lambda: manager)
+    return records
+
+
+class TestNamesThatLookLikeTheCommand:
+    def test_every_item_is_returned(self, product_dictionary) -> None:
+        result = list_dictionary("PRODUCT")
+
+        assert result["count"] == len(product_dictionary)
+
+    @pytest.mark.parametrize("name", ["LIST.PRICE", "LIST.COST", "LISTED.DATE"])
+    def test_a_name_beginning_like_the_verb_survives(self, product_dictionary, name: str) -> None:
+        # The one that matters commercially: a product file's price field.
+        returned = {item["name"] for item in list_dictionary("PRODUCT")["dictionary_items"]}
+
+        assert name in returned
+
+    def test_the_price_field_keeps_its_definition(self, product_dictionary) -> None:
+        # Present is not the same as correct. The conversion and field number are
+        # what a reader needs in order to use it.
+        found = next(
+            item
+            for item in list_dictionary("PRODUCT")["dictionary_items"]
+            if item["name"] == "LIST.PRICE"
+        )
+
+        assert found["field_number"] == "6"
+        assert found["heading"] == "List Price"

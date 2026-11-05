@@ -1,0 +1,28 @@
+{% from "partials/fields.html" import text, checkbox, select %}
+{% if errors and errors.get("_stale") %}<p class="alert" role="alert">{{ errors["_stale"] }} <a href="{{ action_url }}">Reload</a></p>{% endif %}
+<form method="post" action="{{ action_url }}" class="connection-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="version" value="{{ form.version }}">
+  {{ text("name", "Name", form.name, errors, hint="What people see in their AI assistant, such as Prod or Test.", required=true) }}
+  {{ text("host", "Host", form.host, errors, required=true) }}
+  {{ text("port", "Port", form.port, errors, type="number") }}
+  {{ select("service", "Database", form.service, [("uvcs", "UniVerse (uvcs)"), ("udcs", "UniData (udcs)")], errors) }}
+  {{ text("account", "Account", form.account, errors, required=true) }}
+  {{ checkbox("ssl", "Use SSL", form.ssl) }}
+  {{ select("login_mode", "Logins", form.login_mode, [("shared", "One shared U2 login for everyone"), ("per_user", "Each person's own U2 login, set by them on My access")], errors) }}
+  <fieldset>
+    <legend>U2 login</legend>
+    <p class="hint">Saved for a shared connection. For per-user connections it is only used to test, and is not saved.</p>
+    {{ text("login_user", "U2 user", form.login_user, errors) }}
+    {{ text("login_password", "Password", "", errors, type="password", autocomplete="new-password", hint=password_hint) }}
+  </fieldset>
+  {{ checkbox("read_only", "Read-only", form.read_only, hint="Refuse every write on this connection. U2_READ_ONLY, when set, overrides this for all connections.") }}
+  {{ checkbox("enabled", "Enabled", form.enabled) }}
+  <div class="actions">
+    <button type="submit" name="action" value="save">{{ submit_label }}</button>
+    <button type="submit" name="action" value="test" class="secondary"
+            hx-post="{{ action_url }}" hx-vals='{"action": "test"}'
+            hx-target="#test-result" hx-swap="outerHTML" hx-disabled-elt="this">Test connection</button>
+  </div>
+  {% include "partials/test_result.html" %}
+</form>

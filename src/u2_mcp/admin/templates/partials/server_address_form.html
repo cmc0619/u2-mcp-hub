@@ -1,0 +1,11 @@
+{% from "partials/fields.html" import checkbox, text %}
+<form method="post" action="{{ action_url }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field-row">
+    {{ text("public_url", "Server address", public_url, errors, type="url", hint="The address people and their AI assistants use, such as https://u2-mcp.example.com", required=true) }}
+    <button type="submit">{{ submit_label }}</button>
+  </div>
+  {% if warning %}<p class="warning">{{ warning }}</p>{% endif %}
+  {% if confirm_https_label %}{{ checkbox("confirm_https", confirm_https_label, false, hint="Needed only when saving an https address while this page is open over http.") }}{% endif %}
+  <p class="hint">{{ restart_note }}</p>
+</form>

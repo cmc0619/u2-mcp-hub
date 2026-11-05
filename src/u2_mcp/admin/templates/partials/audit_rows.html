@@ -1,0 +1,11 @@
+<table id="audit-rows">
+  <thead><tr><th>When</th><th>Who</th><th>Kind</th><th>Connection</th><th>Action</th><th>Outcome</th></tr></thead>
+  <tbody>
+  {% for e in recent %}
+  <tr><td>{{ e.at | when }}</td><td>{{ e.actor_label or "" }}</td><td>{{ e.kind }}</td>
+      <td>{{ names.get(e.connection_id, e.connection_id or "") }}</td><td>{{ e.action }}</td><td>{{ e.outcome }}</td></tr>
+  {% else %}
+  <tr><td colspan="6">Nothing yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

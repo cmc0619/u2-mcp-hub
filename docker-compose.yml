@@ -1,0 +1,27 @@
+# u2-mcp in team mode.
+# 1. Put U2_SECRET_KEY (32+ random characters; keep a copy in your vault) in a .env
+#    file next to this one.
+# 2. docker compose up -d
+# 3. Open http://<this host>:8000/admin/ and enter the setup code from:
+#      docker compose exec u2-mcp u2-mcp admin show-setup-code
+# Behind a reverse proxy, see deploy/caddy or deploy/nginx instead.
+# Everything persistent (settings database, uopy driver log) is in the u2-data volume.
+services:
+  u2-mcp:
+    image: ${U2_IMAGE:-u2-mcp:local}
+    build:
+      context: .
+      target: release
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      U2_SECRET_KEY: ${U2_SECRET_KEY:?Set U2_SECRET_KEY in .env (32+ random characters)}
+      U2_PUBLIC_URL: ${U2_PUBLIC_URL:-}
+      U2_TRUSTED_PROXIES: ${U2_TRUSTED_PROXIES:-}
+      U2_ADMIN_ALLOWED_IPS: ${U2_ADMIN_ALLOWED_IPS:-}
+    volumes:
+      - u2-data:/data
+
+volumes:
+  u2-data:

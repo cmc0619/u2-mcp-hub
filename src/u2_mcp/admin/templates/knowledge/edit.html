@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ topic.topic }} · Knowledge · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>{{ topic.topic }}</h1>
+<p>{{ label }}</p>
+<p class="hint">Updated {{ topic.updated_at | when }}. Saved Markdown/text is shown as plain text, not rendered HTML.</p>
+{% if error %}<p class="alert" role="alert">{{ error }} Your unsaved text is kept below. Copy it before <a href="{{ topic_url }}">reloading the saved topic</a>.</p>{% endif %}
+<form method="post" action="{{ topic_url }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="revision" value="{{ revision }}">
+  <div class="field knowledge-content">
+    <label for="knowledge-content">Content</label>
+    <p class="hint" id="knowledge-help">Edit the full topic below. Modify or remove individual lines, then save.</p>
+    <textarea id="knowledge-content" name="content" rows="20" aria-describedby="knowledge-help">{{ content }}</textarea>
+  </div>
+  <div class="actions">
+    <button type="submit">Save topic</button>
+    <a href="{{ list_url }}">Back to topics</a>
+    <a href="{{ delete_url }}">Delete topic</a>
+  </div>
+</form>
+{% endblock %}

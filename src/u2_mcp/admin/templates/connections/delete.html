@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ connection.name }} · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Delete {{ connection.name }}?</h1>
+<p>This removes the connection, every grant on it and its live sessions. Database knowledge notes are kept. It cannot be undone.</p>
+<form method="post" action="/admin/connections/{{ connection.id }}/delete" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="danger">Delete {{ connection.name }}</button>
+  <a href="/admin/connections/{{ connection.id }}">Cancel</a>
+</form>
+{% endblock %}

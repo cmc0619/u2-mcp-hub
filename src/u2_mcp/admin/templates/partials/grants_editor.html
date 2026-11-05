@@ -1,0 +1,80 @@
+<section id="grants">
+<h2>Access</h2>
+{% if grants %}
+<table>
+  <thead><tr>
+    {% if not editor.connection %}<th>Connection</th>{% endif %}
+    {% if not editor.subject_type %}<th>Who</th>{% endif %}
+    <th>Role</th><th class="row-action"><span class="visually-hidden">Actions</span></th>
+  </tr></thead>
+  <tbody>
+  {% for row in grants %}
+  <tr>
+    {% if not editor.connection %}<td><a href="/admin/connections/{{ row.connection.id }}">{{ row.connection.name }}</a></td>{% endif %}
+    {% if not editor.subject_type %}<td>{{ row.subject_label }}{% if row.grant.subject_type == "everyone" %}<p class="warning">{{ everyone_warning }}</p>{% endif %}</td>{% endif %}
+    <td>
+      <form method="post" action="/admin/grants/{{ row.grant.id }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="return_to" value="{{ editor.return_to }}">
+        <select name="role_id" aria-label="Role for {{ row.subject_label }} on {{ row.connection.name }}">
+          {% for role in editor.roles %}<option value="{{ role.id }}" {% if role.id == row.grant.role_id %}selected{% endif %}>{{ role.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+    </td>
+    <td class="row-action">
+      <form method="post" action="/admin/grants/{{ row.grant.id }}/delete" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="return_to" value="{{ editor.return_to }}">
+        <button type="submit" class="danger">Remove</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No grants yet. Nobody can use this from an AI assistant until one is added.</p>
+{% endif %}
+<h3>Add a grant</h3>
+<form method="post" action="/admin/grants" class="grant-add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="return_to" value="{{ editor.return_to }}">
+  {% if editor.connection %}
+  <input type="hidden" name="connection_id" value="{{ editor.connection.id }}">
+  {% else %}
+  <div class="field"><label for="g-connection">Connection</label>
+    <select id="g-connection" name="connection_id">
+      {% for c in editor.connections %}<option value="{{ c.id }}">{{ c.name }}{{ " (per person)" if c.login_mode == "per_user" else "" }}</option>{% endfor %}
+    </select></div>
+  {% endif %}
+  {% if editor.subject_type %}
+  <input type="hidden" name="subject_type" value="{{ editor.subject_type }}">
+  {% if editor.subject_type == "user" %}<input type="hidden" name="user_id" value="{{ editor.subject_id }}">{% endif %}
+  {% if editor.subject_type == "group" %}<input type="hidden" name="group_id" value="{{ editor.subject_id }}">{% endif %}
+  {% else %}
+  <div class="field"><label for="g-who">Who</label>
+    <select id="g-who" name="subject_type">
+      <option value="user">A person</option>
+      {% if groups_visible %}<option value="group">A group</option>{% endif %}
+      <option value="everyone">Everyone</option>
+    </select>
+    <p class="hint">Everyone: {{ everyone_warning }}</p></div>
+  <div class="field"><label for="g-user">Person</label>
+    <select id="g-user" name="user_id">
+      {% for u in editor.users %}<option value="{{ u.id }}">{{ u.label }}</option>{% endfor %}
+    </select></div>
+  {% if editor.groups and groups_visible %}
+  <div class="field"><label for="g-group">Group</label>
+    <select id="g-group" name="group_id">
+      {% for g in editor.groups %}<option value="{{ g.id }}">{{ g.label or g.external_id }}{% if g.issuer %} ({{ g.issuer }}){% endif %}</option>{% endfor %}
+    </select></div>
+  {% endif %}
+  {% endif %}
+  <div class="field"><label for="g-role">Role</label>
+    <select id="g-role" name="role_id">
+      {% for role in editor.roles %}<option value="{{ role.id }}">{{ role.name }}</option>{% endfor %}
+    </select></div>
+  <div class="actions"><button type="submit">Add grant</button></div>
+</form>
+</section>

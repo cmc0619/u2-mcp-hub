@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "partials/fields.html" import text %}
+{% block title %}{{ group.label or group.external_id }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="/admin/groups">All groups</a></p>
+<h1>{{ group.label or group.external_id }}</h1>
+<p>Identity provider value: <code>{{ group.external_id }}</code>{% if group.issuer %} from <code>{{ group.issuer }}</code>{% endif %}</p>
+<form method="post" action="/admin/groups/{{ group.id }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {{ text("label", "Label", group.label or "", errors, hint="What admins see. Leave blank to show the value above.") }}
+  <div class="actions"><button type="submit">Save label</button></div>
+</form>
+{% include "partials/grants_editor.html" %}
+{% endblock %}

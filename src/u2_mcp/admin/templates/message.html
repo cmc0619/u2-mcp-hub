@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p>{{ message }}</p>
+{% if link %}<p><a href="{{ link }}">{{ link_text or "Continue" }}</a></p>{% endif %}
+{% endblock %}

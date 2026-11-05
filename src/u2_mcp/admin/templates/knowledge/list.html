@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Knowledge · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Database knowledge</h1>
+<p>Review saved topics by server/account, including databases without a current connection.</p>
+{% if namespaces %}
+<form method="get" action="/admin/knowledge">
+  <div class="field">
+    <label for="knowledge-scope">Server / account</label>
+    <select id="knowledge-scope" name="scope" required>
+      <option value="">Select a database</option>
+      {% for namespace in namespaces %}
+      <option value="{{ namespace.scope }}"{% if selected and selected.scope == namespace.scope %} selected{% endif %}>{{ namespace.label }} ({{ namespace.count }} topics)</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit">Review topics</button>
+</form>
+{% if selected %}
+<h2>{{ selected.label }}</h2>
+<table>
+  <thead><tr>
+    {% for column, label in (("topic", "Topic"), ("updated", "Updated")) %}
+    <th aria-sort="{{ sort_links[column].aria }}"><a class="sort" href="{{ sort_links[column].url }}">{{ label }}</a>{% if sort_links[column].arrow %} <span aria-hidden="true">{{ sort_links[column].arrow }}</span>{% endif %}</th>
+    {% endfor %}
+    <th></th>
+  </tr></thead>
+  <tbody>
+    {% for topic, topic_url in entries %}
+    <tr>
+      <td>{{ topic.topic }}</td><td>{{ topic.updated_at | when }}</td>
+      <td><a href="{{ topic_url }}">Review {{ topic.topic }}</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No topics remain in this database.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% else %}
+<p>No knowledge has been saved yet.</p>
+{% endif %}
+{% endblock %}

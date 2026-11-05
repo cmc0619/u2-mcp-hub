@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "partials/fields.html" import text %}
+{% block title %}{{ role.name }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="/admin/roles">All roles</a></p>
+<h1>{{ role.name }}</h1>
+{% if errors.get("_stale") %}<p class="alert" role="alert">{{ errors["_stale"] }} <a href="/admin/roles/{{ role.id }}">Reload</a></p>{% endif %}
+{% if role.builtin %}<p class="hint">Built-in roles can't be changed. Clone one to make your own.</p>{% endif %}
+<form method="post" action="/admin/roles/{{ role.id }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="version" value="{{ version }}">
+  {% if not role.builtin %}{{ text("name", "Name", name, errors, required=true) }}{% endif %}
+  <table>
+    <thead><tr><th>Permission</th><th>Tools</th></tr></thead>
+    <tbody>
+    {% for p in permissions %}
+    <tr><td><label><input type="checkbox" name="permissions" value="{{ p }}" {% if p in chosen %}checked{% endif %} {% if role.builtin %}disabled{% endif %}> {{ p }}</label>{% if p in writes %} <span class="hint">(write)</span>{% endif %}</td>
+        <td>{{ tools[p] | join(", ") or "No tools" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if not role.builtin %}<div class="actions"><button type="submit">Save role</button></div>{% endif %}
+</form>
+<form method="post" action="/admin/roles/{{ role.id }}/clone" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="secondary">Clone {{ role.name }}</button>
+</form>
+{% if not role.builtin %}
+<form method="post" action="/admin/roles/{{ role.id }}/delete" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="danger" {% if in_use %}disabled title="Used by {{ in_use }} grant(s)"{% endif %}>Delete role</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,75 @@
+:root { --ink: #1d2433; --muted: #5b6475; --line: #d7dce5; --accent: #1f5fbf;
+        --bad: #b42318; --good: #067647; --paper: #ffffff; --wash: #f5f7fa; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+       color: var(--ink); background: var(--wash); }
+.top { display: flex; gap: 1.5rem; align-items: center; padding: .75rem 1.5rem;
+       background: var(--paper); border-bottom: 1px solid var(--line); }
+.top nav { display: flex; gap: 1rem; flex: 1; }
+.brand { font-weight: 600; color: var(--ink); text-decoration: none; }
+.inline { display: inline-flex; gap: .5rem; align-items: center; margin: 0; }
+.who { color: var(--muted); }
+/* Desktop-first: admins work on wide screens. */
+main { max-width: 110rem; margin: 2rem auto; padding: 0 2rem; }
+h1 { font-size: 1.5rem; margin-top: 0; }
+a { color: var(--accent); }
+.field { margin: 0 0 .75rem; display: flex; flex-direction: column; gap: .25rem; max-width: 32rem; }
+.field.checkbox { flex-direction: column; }
+input[type=text], input[type=password], input[type=number], input[type=url], select {
+  font: inherit; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: 6px; }
+.has-error input, .has-error select { border-color: var(--bad); }
+.hint { margin: 0; color: var(--muted); font-size: .875rem; }
+.error { margin: 0; color: var(--bad); font-size: .875rem; }
+button, .button { font: inherit; padding: .45rem .9rem; border-radius: 6px; cursor: pointer;
+                  border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+button.secondary, .button.secondary { background: var(--paper); color: var(--accent); }
+button.danger, .button.danger { background: var(--bad); border-color: var(--bad); }
+a.button { text-decoration: none; display: inline-block; }
+button.small { padding: .2rem .6rem; font-size: .875rem; }
+th.row-action, td.row-action { text-align: right; white-space: nowrap; width: 1%; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.actions { display: flex; gap: .75rem; align-items: center; margin-top: .75rem; }
+.notice { padding: .6rem .9rem; background: #ecfdf3; border: 1px solid #abefc6; border-radius: 6px; }
+.warning { padding: .6rem .9rem; background: #fffaeb; border: 1px solid #fedf89; border-radius: 6px; }
+.alert { padding: .6rem .9rem; background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px;
+         color: var(--bad); }
+.result.ok { color: var(--good); } .result.bad { color: var(--bad); }
+table { width: 100%; border-collapse: collapse; background: var(--paper); }
+th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--line); }
+.steps { display: flex; gap: 1rem; list-style: none; padding: 0; color: var(--muted); }
+.steps .current { color: var(--ink); font-weight: 600; }
+pre { background: var(--paper); border: 1px solid var(--line); padding: 1rem; overflow-x: auto; }
+#grants form.inline select, #grants form.inline input { max-width: 12rem; }
+fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 1rem; }
+/* Company sign-in: show only the provider's own fields (without :has() both show; the server ignores the other). */
+.sso-form:has(#f-provider option[value="oidc"]:checked) .sso-entra { display: none; }
+.sso-form:has(#f-provider option[value="entra"]:checked) .sso-oidc { display: none; }
+.sso-form .sso-secret-entra { display: none; }
+.sso-form:has(#f-provider option[value="entra"]:checked) .sso-secret-entra { display: block; }
+.field.knowledge-content { max-width: none; }
+.knowledge-content textarea { width: 100%; padding: .6rem; font: 14px/1.5 monospace;
+  border: 1px solid var(--line); border-radius: 6px; resize: vertical; }
+th a.sort { color: inherit; text-decoration: none; }
+th a.sort:hover { text-decoration: underline; }
+.actions .shown-first { order: -1; }
+/* A field with its button beside the input, not below the form. */
+.field-row { display: flex; gap: .75rem; align-items: flex-start; }
+.field-row > .field { flex: 0 1 32rem; }
+.field-row > button { margin-top: 1.75rem; }
+/* Less vertical scroll: fields of a form sit side by side on a wide screen. Anything
+   that is not a field (hints, warnings, buttons, fieldsets) takes the whole row. */
+h2 { margin: 1.5rem 0 .6rem; }
+:is(.form-grid, .sso-form, .connection-form, .connection-form fieldset) {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  column-gap: 1.5rem; align-items: start; }
+:is(.form-grid, .sso-form, .connection-form, .connection-form fieldset) > * { grid-column: 1 / -1; }
+:is(.form-grid, .sso-form, .connection-form, .connection-form fieldset) > .field,
+.sso-form > :is(.sso-entra, .sso-oidc) > .field { grid-column: auto; max-width: none; }
+.sso-form .sso-entra, .sso-form .sso-oidc { display: contents; }
+.connection-form fieldset { padding: .5rem 1rem 0; }
+/* Add a grant: its choices and the button on one line. */
+.grant-add { display: flex; flex-wrap: wrap; gap: 0 1rem; align-items: flex-start; }
+.grant-add .field { flex: 0 1 18rem; }
+.grant-add .actions { margin-top: 1.75rem; }
+/* In a grid form, the buttons take the next free cell, beside the last field. */
+.form-grid > .actions { grid-column: auto; margin-top: 1.75rem; }

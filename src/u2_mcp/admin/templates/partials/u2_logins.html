@@ -1,0 +1,25 @@
+{# Admin view of personal U2 logins. u2_logins: U2LoginRow list; u2_logins_return_to: this page. #}
+{% if u2_logins %}
+<section id="u2-logins">
+<h2>Personal U2 logins</h2>
+<p class="hint">Each person sets their own U2 login on My access. Admins can see whether it is set and clear it, never the password.</p>
+<table>
+  <thead><tr><th>{{ "Connection" if u2_logins_by_connection else "Person" }}</th><th>U2 login</th><th>Updated</th><th></th></tr></thead>
+  <tbody>
+  {% for row in u2_logins %}
+  <tr>
+    <td>{% if u2_logins_by_connection %}<a href="/admin/connections/{{ row.connection.id }}">{{ row.connection.name }}</a>{% else %}<a href="/admin/users/{{ row.person.id }}">{{ row.person.label }}</a>{% endif %}</td>
+    <td>{% if row.login %}Set: {{ row.login.u2_user }}{% else %}<span class="warning">Not set</span>{% endif %}</td>
+    <td>{{ row.login.updated_at | when if row.login else "" }}</td>
+    <td>{% if row.login %}
+      <form method="post" action="/admin/users/{{ row.person.id }}/u2-logins/{{ row.connection.id }}/clear" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="return_to" value="{{ u2_logins_return_to }}">
+        <button type="submit" class="danger">Clear {{ row.person.label }}'s U2 login on {{ row.connection.name }}</button>
+      </form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</section>
+{% endif %}

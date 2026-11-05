@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "partials/fields.html" import text %}
+{% block title %}{{ person.label }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="/admin/users">All users</a></p>
+<h1>{{ person.label }}</h1>
+<table><tbody>
+  <tr><th>Sign-in</th><td>{{ "Local: " ~ person.username if person.kind == "local" else "Company (SSO): " ~ person.label }}</td></tr>
+  <tr><th>Email</th><td>{{ person.email or "" }}</td></tr>
+  {% if groups_visible %}<tr><th>Groups</th><td>{% if person.groups_unavailable %}<span class="warning">Groups unavailable at the last sign-in: group grants do not apply until a sign-in carries them.</span>{% else %}{{ groups | map(attribute="external_id") | join(", ") }}{% endif %}</td></tr>{% endif %}
+</tbody></table>
+<form method="post" action="/admin/users/{{ person.id }}/flags" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if person.is_admin %}<button type="submit" name="is_admin" value="off" class="secondary">Remove admin</button>
+  {% else %}<button type="submit" name="is_admin" value="on" class="secondary">Make admin</button>{% endif %}
+  {% if person.disabled %}<button type="submit" name="disabled" value="off" class="secondary">Enable</button>
+  {% else %}<button type="submit" name="disabled" value="on" class="danger">Disable</button>{% endif %}
+</form>
+<p><a href="/admin/users/{{ person.id }}/access">Effective access</a></p>
+<h2>Details</h2>
+<form method="post" action="/admin/users/{{ person.id }}/details" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if person.kind == "local" %}{{ text("username", "Username", edit_values.username, edit_errors, required=true) }}{% endif %}
+  {{ text("display_name", "Display name", edit_values.display_name, edit_errors) }}
+  {{ text("email", "Email", edit_values.email, edit_errors, hint=("The next company sign-in may overwrite the name and email from the sign-in token." if person.kind == "sso" else "")) }}
+  <div class="actions"><button type="submit" class="secondary">Save details</button></div>
+</form>
+<h2>Password</h2>
+{% if person.kind != "local" %}<p>Signs in with company sign-in; no password here.</p>
+{% elif is_self %}<p>Use <a href="/admin/account/password">Change password</a> for your own account.</p>
+{% else %}
+<form method="post" action="/admin/users/{{ person.id }}/reset-password">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {{ text("password", "Temporary password", "", reset_errors, type="password", autocomplete="new-password", hint="At least 12 characters. They must change it at their next sign-in, and their admin sessions end. Tokens stay valid.") }}
+  <div class="actions">
+    <button type="submit" class="secondary">Reset password</button>
+    <button type="submit" name="generate" value="yes" class="secondary">Generate</button>
+  </div>
+</form>
+{% endif %}
+<h2>Tokens</h2>
+{% if paused %}<p class="warning">{% if person.last_sso_login_at is none %}Has not signed in with company sign-in yet, so this person's tokens are paused.{% else %}This person's tokens are paused: no company sign-in for over {{ freshness_days }} days.{% endif %} They reactivate when the person signs in to this site.</p>{% endif %}
+{% if tokens %}
+<table>
+  <thead><tr><th>Name</th><th>Expires</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tokens %}
+  <tr><td>{{ t.record.name }}</td><td>{{ t.record.expires_at | when }}</td>
+      <td>{{ t.record.last_used_at | when }}</td><td>{{ t.status }}</td>
+      <td>{% if t.revocable %}<form method="post" action="/admin/users/{{ person.id }}/tokens/{{ t.record.id }}/revoke" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="danger">Revoke {{ t.record.name }}</button></form>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>No tokens.</p>{% endif %}
+{% if person.kind == "sso" %}
+<h2 id="signed-in-apps">Signed-in apps</h2>
+<p class="hint">Apps that signed in with this person's company account, such as GitHub Copilot. A signed-out app must sign in again.</p>
+{% if apps %}
+<table>
+  <thead><tr><th>App</th><th>Signed in</th><th>Last refreshed</th><th>Sign-in expires</th><th class="row-action"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {% for app in apps %}
+    <tr><td>{{ app.name }}</td>
+        <td>{{ app.signed_in_at | when }}</td><td>{{ app.last_refreshed_at | when }}</td><td>{{ app.expires_at | when }}</td>
+        <td class="row-action"><form method="post" action="/admin/users/{{ person.id }}/apps/sign-out" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="client_id" value="{{ app.client_id }}">
+          <button type="submit" class="danger small">Sign out<span class="visually-hidden"> {{ app.name }}</span></button>
+        </form></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>No apps are signed in with this person's account.</p>{% endif %}
+{% endif %}
+{% include "partials/grants_editor.html" %}
+{% include "partials/u2_logins.html" %}
+{% if not is_self %}<p><a class="button danger" href="/admin/users/{{ person.id }}/delete">Delete {{ person.label }}</a></p>{% endif %}
+{% endblock %}

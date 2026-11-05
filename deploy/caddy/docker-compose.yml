@@ -1,0 +1,54 @@
+# u2-mcp behind Caddy. From the repository root:
+#   U2_SECRET_KEY=... U2_SITE_ADDRESS=u2-mcp.example.com \
+#     docker compose -f deploy/caddy/docker-compose.yml up -d
+# u2-mcp is not published: only Caddy reaches it, from a fixed address, and that
+# address is the only one whose X-Forwarded-* headers u2-mcp believes.
+services:
+  u2-mcp:
+    image: ${U2_IMAGE:-u2-mcp:local}
+    build:
+      context: ../..
+      target: release
+    restart: unless-stopped
+    environment:
+      U2_SECRET_KEY: ${U2_SECRET_KEY:?Set U2_SECRET_KEY (32+ random characters)}
+      # U2_PUBLIC_URL and U2_TRUSTED_PROXIES go together. The public URL is what
+      # people type (https://u2-mcp.example.com, no trailing slash); it builds
+      # sign-in redirects. The trusted proxy is the proxy container's own address
+      # (172.31.250.2/32 on the edge network below): only a request that arrives
+      # from it may carry X-Forwarded-* headers. Change both if you change the network.
+      U2_PUBLIC_URL: ${U2_PUBLIC_URL:-https://u2-mcp.example.com}
+      U2_TRUSTED_PROXIES: 172.31.250.2/32
+      U2_ADMIN_ALLOWED_IPS: ${U2_ADMIN_ALLOWED_IPS:-}
+    volumes:
+      - u2-data:/data
+    networks:
+      edge:
+        ipv4_address: 172.31.250.3
+
+  caddy:
+    image: caddy:2.11
+    restart: unless-stopped
+    depends_on: [u2-mcp]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      U2_SITE_ADDRESS: ${U2_SITE_ADDRESS:-u2-mcp.example.com}
+    volumes:
+      # U2_CADDYFILE=Caddyfile.internal uses Caddy's internal CA on a private network.
+      - ./${U2_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    networks:
+      edge:
+        ipv4_address: 172.31.250.2
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  u2-data:
+  caddy-data:

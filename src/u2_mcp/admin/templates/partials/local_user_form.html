@@ -1,0 +1,13 @@
+{% from "partials/fields.html" import text, checkbox %}
+<form method="post" action="{{ action_url }}" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if show_setup_code %}
+  {{ text("setup_code", "Setup code", "", errors, hint="Printed in the server log at start-up, or run: u2-mcp admin show-setup-code", required=true) }}
+  {% endif %}
+  {{ text("username", "Username", values.get("username", ""), errors, autocomplete="username", required=true) }}
+  {{ text("display_name", "Display name (optional)", values.get("display_name", ""), errors) }}
+  {{ text("password", "Password", "", errors, type="password", autocomplete="new-password", hint="At least 12 characters.", required=true) }}
+  {{ text("password_again", "Password again", "", errors, type="password", autocomplete="new-password", required=true) }}
+  {% if show_admin_flag %}{{ checkbox("is_admin", "Admin: can use this admin site (gives no data access)", values.get("is_admin") == "on") }}{% endif %}
+  <div class="actions"><button type="submit">{{ submit_label }}</button></div>
+</form>

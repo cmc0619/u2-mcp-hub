@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Roles · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Roles</h1>
+<table>
+  <thead><tr><th>Role</th><th>Kind</th><th>Permissions</th><th>Grants using it</th></tr></thead>
+  <tbody>
+  {% for r in roles %}
+  <tr><td><a href="/admin/roles/{{ r.id }}">{{ r.name }}</a></td>
+      <td>{{ "Built-in" if r.builtin else "Custom" }}</td>
+      <td>{{ r.permissions | sort | join(", ") }}</td><td>{{ in_use[r.id] }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

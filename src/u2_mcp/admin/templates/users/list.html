@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Users · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Users</h1>
+<p><a class="button" href="/admin/users/new">Create a local user</a></p>
+<form method="get" action="/admin/users" class="actions"
+      hx-get="/admin/users" hx-target="#users" hx-select="#users" hx-swap="outerHTML"
+      hx-trigger="input changed delay:300ms from:#f-q, change">
+  <label for="f-q">Search</label>
+  <input id="f-q" type="text" name="q" value="{{ filters.get('q', '') }}">
+  <label for="f-admin">Admin</label>
+  <select id="f-admin" name="admin">
+    {% for v, l in [("", "Any"), ("yes", "Admins"), ("no", "Not admins")] %}<option value="{{ v }}" {% if filters.get('admin', '') == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  <label for="f-status">Status</label>
+  <select id="f-status" name="status">
+    {% for v, l in [("", "Any"), ("enabled", "Enabled"), ("disabled", "Disabled")] %}<option value="{{ v }}" {% if filters.get('status', '') == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+</form>
+<div id="users">
+{% if users %}
+<table>
+  <thead><tr><th>Name</th><th>Sign-in</th><th>Admin</th><th>Status</th><th>Last SSO sign-in</th><th class="row-action"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr><td><a href="/admin/users/{{ u.id }}">{{ u.label }}</a></td>
+      <td>{{ "Local" if u.kind == "local" else "Company (SSO)" }}</td>
+      <td>{{ "Admin" if u.is_admin else "" }}</td>
+      <td>{{ "Disabled" if u.disabled else "Enabled" }}{% if u.groups_unavailable %} (groups unavailable){% endif %}</td>
+      <td>{{ u.last_sso_login_at | when }}</td>
+      <td class="row-action">{% if u.id in with_apps %}<form method="post" action="/admin/users/{{ u.id }}/apps/sign-out" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="next" value="{{ back }}">
+          <button type="submit" class="danger small">Sign out apps<span class="visually-hidden"> of {{ u.label }}</span></button>
+        </form>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>No users match.</p>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Effective access: {{ person.label }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="/admin/users/{{ person.id }}">{{ person.label }}</a></p>
+<h1>Effective access: {{ person.label }}</h1>
+{% if person.disabled %}<p class="warning">This user is disabled and can use nothing.</p>{% endif %}
+{% if person.groups_unavailable %}<p class="warning">Groups were unavailable at the last sign-in, so group grants do not apply.</p>{% endif %}
+{% for entry in report %}
+<h2>{{ entry.connection.name }}</h2>
+{% if entry.needs_personal_login %}<p class="warning">No U2 login of their own is set on {{ entry.connection.name }}, so their calls there are refused. They can set it on My access.</p>{% endif %}
+<table>
+  <thead><tr><th>Permission</th><th>Given by</th></tr></thead>
+  <tbody>
+  {% for permission, origins in entry.sources.items() %}
+  <tr><td>{{ permission }}{% if permission in entry.blocked_by_read_only %} (blocked: read-only){% endif %}</td>
+      <td>{{ origins | join("; ") }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No access to any connection.</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% macro text(name, label, value, errors, type="text", hint="", autocomplete="off", required=false) %}
+<div class="field{% if errors and errors.get(name) %} has-error{% endif %}">
+  <label for="f-{{ name }}">{{ label }}</label>
+  <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}"
+         value="{{ value if type != 'password' else '' }}" autocomplete="{{ autocomplete }}"
+         {% if required %}required{% endif %}
+         {% if errors and errors.get(name) %}aria-invalid="true" aria-describedby="e-{{ name }}"{% endif %}>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+  {% if errors and errors.get(name) %}<p class="error" id="e-{{ name }}">{{ errors[name] }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro checkbox(name, label, checked, hint="") %}
+<div class="field checkbox">
+  <label><input type="checkbox" name="{{ name }}" {% if checked %}checked{% endif %}> {{ label }}</label>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro select(name, label, value, options, errors) %}
+<div class="field{% if errors and errors.get(name) %} has-error{% endif %}">
+  <label for="f-{{ name }}">{{ label }}</label>
+  <select id="f-{{ name }}" name="{{ name }}">
+    {% for option_value, option_label in options %}
+    <option value="{{ option_value }}" {% if option_value == value %}selected{% endif %}>{{ option_label }}</option>
+    {% endfor %}
+  </select>
+  {% if errors and errors.get(name) %}<p class="error">{{ errors[name] }}</p>{% endif %}
+</div>
+{% endmacro %}

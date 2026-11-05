@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ connection.name if connection else "Add a connection" }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="/admin/connections">All connections</a></p>
+<h1>{{ connection.name if connection else "Add a connection" }}</h1>
+{% include "partials/connection_form.html" %}
+{% if connection %}
+<h2>Live sessions</h2>
+{% if sessions %}
+<ul>{% for login in sessions %}<li>{{ login }}</li>{% endfor %}</ul>
+<form method="post" action="/admin/connections/{{ connection.id }}/disconnect">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="secondary">Disconnect all</button>
+</form>
+{% else %}
+<p>None.</p>
+{% endif %}
+{% include "partials/grants_editor.html" %}
+{% include "partials/u2_logins.html" %}
+<h2>Delete</h2>
+<p><a href="/admin/connections/{{ connection.id }}/delete">Delete this connection…</a></p>
+{% endif %}
+{% endblock %}

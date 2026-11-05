@@ -1,0 +1,14 @@
+# For a private network without public DNS: Caddy issues the certificate from
+# its own internal CA instead of a public one. Clients must trust that CA's root
+# certificate (see docs/admin.md). Use it with U2_CADDYFILE=Caddyfile.internal.
+{
+	auto_https disable_redirects
+}
+
+{$U2_SITE_ADDRESS:u2-mcp.internal} {
+	tls internal
+	reverse_proxy u2-mcp:8000 {
+		# Streamable HTTP keeps responses open: pass bytes on as they arrive.
+		flush_interval -1
+	}
+}

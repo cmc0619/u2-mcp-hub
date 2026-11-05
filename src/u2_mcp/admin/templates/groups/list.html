@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Groups · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Groups</h1>
+<p class="hint">Groups appear here the first time someone signs in through company sign-in with them.</p>
+{% if groups %}
+<table>
+  <thead><tr><th>Label</th><th>Value from the identity provider</th><th>Identity provider</th></tr></thead>
+  <tbody>{% for g in groups %}<tr><td><a href="/admin/groups/{{ g.id }}">{{ g.label or g.external_id }}</a></td><td><code>{{ g.external_id }}</code></td><td><code>{{ g.issuer or "" }}</code></td></tr>{% endfor %}</tbody>
+</table>
+{% else %}<p>No groups seen yet.</p>{% endif %}
+{% endblock %}

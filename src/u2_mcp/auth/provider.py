@@ -1,0 +1,671 @@
+"""OAuth Authorization Server Provider for u2-mcp.
+
+Implements MCP SDK's OAuthAuthorizationServerProvider protocol, bridging AI
+clients to the admin site's company sign-in (OIDC).
+"""
+
+import base64
+import dataclasses
+import hashlib
+import inspect
+import logging
+import secrets
+import time
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
+
+from mcp.server.auth.provider import (
+    AccessToken,
+    AuthorizationCode,
+    AuthorizationParams,
+    AuthorizeError,
+    OAuthAuthorizationServerProvider,
+    RefreshToken,
+    RegistrationError,
+    TokenError,
+    construct_redirect_uri,
+)
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from pydantic import AnyUrl
+
+from ..tokens import looks_like_token
+from .idp.base import TokenInfo
+from .storage import (
+    AuthStorage,
+    PendingAuthorization,
+    StoredAuthCode,
+    StoredClient,
+    StoredToken,
+)
+
+if TYPE_CHECKING:
+    from .idp.stored import StoredSsoAdapter
+
+logger = logging.getLogger(__name__)
+
+
+class _IssuedAuthorizationCode(AuthorizationCode):
+    """The SDK's authorization code, plus the claims the identity provider gave.
+
+    The SDK model carries the person's ``subject`` but has nowhere for their
+    claims. Subclassing keeps both on the one object the SDK hands back to
+    ``exchange_authorization_code``, so the exchange never has to re-read storage
+    for a code the SDK is about to consume.
+    """
+
+    user_claims: dict[str, Any] = {}
+
+
+# The client authentication methods the OAuth metadata may advertise.
+_AUTH_METHODS = ("none", "client_secret_post", "client_secret_basic", "private_key_jwt")
+
+# What to advertise when a stored client names a method outside the spec.
+_DEFAULT_AUTH_METHOD = "client_secret_post"
+
+
+def _auth_method(method: str | None) -> Any:
+    """Return a client authentication method the OAuth metadata can carry.
+
+    A stored value outside the four the specification defines would otherwise be
+    advertised verbatim, so it is replaced with the default and logged.
+
+    Args:
+        method: The method recorded at registration
+
+    Returns:
+        One of the defined authentication methods
+    """
+    if method in _AUTH_METHODS:
+        return method
+    if method is not None:
+        logger.warning(f"Unrecognised token_endpoint_auth_method '{method}'; using default")
+    return _DEFAULT_AUTH_METHOD
+
+
+def _require_client_id(client: OAuthClientInformationFull) -> str:
+    """Return the client's id, refusing to proceed without one.
+
+    Every issued token and every pending authorization is keyed by its client. A
+    missing id would produce records belonging to nobody, which cannot later be
+    revoked by client or attributed in a log.
+
+    Args:
+        client: The client making the request
+
+    Returns:
+        The client id
+
+    Raises:
+        TokenError: If the client has no id
+    """
+    if not client.client_id:
+        raise TokenError(
+            error="invalid_client",
+            error_description="The client presented no client_id",
+        )
+    # The client model comes from a third-party library with no type
+    # information, so the guard above proves the id is present but not that it
+    # is a string. Converting explicitly is the difference between checking a
+    # type and assuming one — and this value goes into an audit record naming
+    # who acted, where a silently wrong type would be discovered much later.
+    return str(client.client_id)
+
+
+class U2OAuthProvider(
+    OAuthAuthorizationServerProvider[AuthorizationCode, RefreshToken, AccessToken]
+):
+    """OAuth provider that bridges Claude.ai DCR to external identity providers.
+
+    This provider acts as an OAuth Authorization Server for Claude.ai clients
+    while delegating actual user authentication to an external IdP (Duo, Auth0, etc.).
+
+    Flow:
+        1. Claude.ai registers via DCR -> stored in memory
+        2. Claude.ai initiates /authorize -> redirects to external IdP
+        3. User authenticates with IdP -> callback to /oauth/callback
+        4. Callback generates auth code -> redirects to Claude callback
+        5. Claude.ai exchanges code at /token -> returns access token
+    """
+
+    def __init__(
+        self,
+        idp_adapter: "StoredSsoAdapter",
+        issuer_url: str,
+        storage: AuthStorage,
+        callback_path: str = "/oauth/callback",
+        token_expiry: int = 3600,
+        refresh_token_expiry: int = 86400 * 30,  # 30 days
+        on_sign_in: Callable[[TokenInfo], None | Awaitable[None]] | None = None,
+        pat_verifier: Callable[[str], Awaitable[AccessToken | None]] | None = None,
+        id_token_claims: Callable[[str], Awaitable[dict[str, Any]]] | None = None,
+    ):
+        """Initialize the OAuth provider.
+
+        Args:
+            idp_adapter: Adapter for the external identity provider
+            issuer_url: Public URL of this server (e.g., https://u2-mcp.example.com)
+            storage: OAuth state in the settings database
+            callback_path: Path for IdP callback (default /oauth/callback)
+            token_expiry: Access token lifetime in seconds (default 1 hour)
+            refresh_token_expiry: Refresh token lifetime in seconds (default 30 days)
+            on_sign_in: Called once for each completed IdP sign-in (not refresh),
+                with the IdP's user info. Team mode records the user and groups.
+            pat_verifier: Verifies personal access tokens; when set, bearer values
+                starting "u2pat_" are checked by it instead of the OAuth store.
+            id_token_claims: Validates the IdP's ID token and returns its claims.
+                Team mode passes one, so groups that userinfo leaves out (Entra)
+                are kept.
+        """
+        self.idp_adapter = idp_adapter
+        self.issuer_url = issuer_url.rstrip("/")
+        self.callback_path = callback_path
+        self.token_expiry = token_expiry
+        self.refresh_token_expiry = refresh_token_expiry
+        self.storage = storage
+        self.on_sign_in = on_sign_in
+        self.pat_verifier = pat_verifier
+        self.id_token_claims = id_token_claims
+
+        # Internal callback URL for external IdP
+        self.idp_callback_url = f"{self.issuer_url}{self.callback_path}"
+
+    # -------------------------------------------------------------------------
+    # Client Registration (DCR)
+    # -------------------------------------------------------------------------
+
+    async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
+        """Retrieve registered client by ID."""
+        stored = self.storage.get_client(client_id)
+        if stored is None:
+            return None
+
+        return OAuthClientInformationFull(
+            client_id=stored.client_id,
+            client_secret=stored.client_secret,
+            client_name=stored.client_name,
+            redirect_uris=[AnyUrl(uri) for uri in stored.redirect_uris],
+            grant_types=stored.grant_types,
+            response_types=stored.response_types,
+            scope=stored.scope,
+            token_endpoint_auth_method=_auth_method(stored.token_endpoint_auth_method),
+            client_id_issued_at=int(stored.created_at),
+        )
+
+    async def register_client(self, client_info: OAuthClientInformationFull) -> None:
+        """Register a new OAuth client (DCR).
+
+        Claude.ai uses DCR to register itself as a client.
+        Idempotent: if a client with the same redirect_uris already exists,
+        returns the existing credentials to handle re-registration during
+        the OAuth flow (Claude.ai may register multiple times).
+        """
+        # Validate redirect URIs
+        if not client_info.redirect_uris:
+            raise RegistrationError(
+                error="invalid_redirect_uri",
+                error_description="At least one redirect_uri is required",
+            )
+
+        redirect_uris = [str(uri) for uri in client_info.redirect_uris]
+
+        # Check for existing client with same redirect_uris (idempotent DCR)
+        existing = self.storage.find_client_by_redirect_uris(redirect_uris)
+        if existing:
+            # Return existing credentials to avoid client_id mismatch
+            client_info.client_id = existing.client_id
+            client_info.client_secret = existing.client_secret
+            if existing.client_secret is None:
+                client_info.client_secret_expires_at = None
+            client_info.client_id_issued_at = int(existing.created_at)
+            logger.info(f"Returning existing client: {existing.client_id} ({existing.client_name})")
+            return
+
+        # Generate client credentials if not provided
+        client_id = client_info.client_id or f"client_{secrets.token_urlsafe(16)}"
+        auth_method = client_info.token_endpoint_auth_method or "client_secret_post"
+        client_secret = (
+            None
+            if auth_method == "none"
+            else client_info.client_secret or secrets.token_urlsafe(32)
+        )
+
+        stored = StoredClient(
+            client_id=client_id,
+            client_secret=client_secret,
+            client_name=client_info.client_name,
+            redirect_uris=redirect_uris,
+            grant_types=list(client_info.grant_types),
+            response_types=list(client_info.response_types),
+            scope=client_info.scope,
+            token_endpoint_auth_method=auth_method,
+        )
+
+        self.storage.store_client(stored)
+
+        # Update client_info with generated credentials
+        client_info.client_id = client_id
+        client_info.client_secret = client_secret
+        if client_secret is None:
+            client_info.client_secret_expires_at = None
+        client_info.client_id_issued_at = int(stored.created_at)
+
+        logger.info(f"Registered client: {client_id} ({client_info.client_name})")
+
+    # -------------------------------------------------------------------------
+    # Authorization
+    # -------------------------------------------------------------------------
+
+    async def authorize(
+        self, client: OAuthClientInformationFull, params: AuthorizationParams
+    ) -> str:
+        """Start authorization flow by redirecting to external IdP.
+
+        Returns a URL to redirect the user to the external IdP for authentication.
+        After IdP auth, user is redirected to our callback which then redirects
+        to Claude's callback with an auth code.
+        """
+        # Generate state for the IdP redirect (contains original request info)
+        idp_state = secrets.token_urlsafe(32)
+        # PKCE on our own leg to the IdP too: many providers require it.
+        idp_verifier = secrets.token_urlsafe(48)
+        idp_challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(idp_verifier.encode("ascii")).digest())
+            .rstrip(b"=")
+            .decode("ascii")
+        )
+
+        # Store pending authorization state
+        pending = PendingAuthorization(
+            state=idp_state,
+            client_id=_require_client_id(client),
+            redirect_uri=str(params.redirect_uri),
+            scope=" ".join(params.scopes) if params.scopes else "",
+            code_challenge=params.code_challenge,
+            code_challenge_method="S256",  # We always use S256
+            claude_redirect_uri=str(params.redirect_uri),
+            claude_state=params.state,  # Store Claude's original state to return later
+            resource=str(params.resource) if params.resource else None,
+            idp_code_verifier=idp_verifier,
+        )
+        self.storage.store_pending_auth(pending)
+
+        # Generate authorization URL for external IdP
+        idp_auth_url = await self.idp_adapter.get_authorization_url(
+            redirect_uri=self.idp_callback_url,
+            state=idp_state,
+            code_challenge=idp_challenge,
+            code_challenge_method="S256",
+        )
+
+        logger.info(f"Redirecting to IdP for client {client.client_id}")
+        return idp_auth_url
+
+    # -------------------------------------------------------------------------
+    # Authorization Code Exchange
+    # -------------------------------------------------------------------------
+
+    async def load_authorization_code(
+        self, client: OAuthClientInformationFull, authorization_code: str
+    ) -> AuthorizationCode | None:
+        """Load an authorization code for validation, with the person it was issued to."""
+        stored = self.storage.get_auth_code(authorization_code)
+        if stored is None:
+            return None
+
+        if stored.client_id != client.client_id:
+            logger.warning(f"Auth code client mismatch: {stored.client_id} != {client.client_id}")
+            return None
+
+        return _IssuedAuthorizationCode(
+            code=stored.code,
+            scopes=stored.scope.split() if stored.scope else [],
+            expires_at=stored.expires_at,
+            client_id=stored.client_id,
+            code_challenge=stored.code_challenge or "",
+            redirect_uri=AnyUrl(stored.redirect_uri),
+            redirect_uri_provided_explicitly=True,
+            resource=stored.resource,
+            subject=stored.user_subject,
+            user_claims=stored.user_claims,
+        )
+
+    async def exchange_authorization_code(
+        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
+    ) -> OAuthToken:
+        """Exchange authorization code for tokens naming the signed-in person."""
+        # The code was issued by this provider, so it carries who signed in. Fall
+        # back to nothing rather than the client id: a client is not a person.
+        user_subject = authorization_code.subject or ""
+        user_claims = (
+            authorization_code.user_claims
+            if isinstance(authorization_code, _IssuedAuthorizationCode)
+            else {}
+        )
+        # Generate tokens
+        access_token = secrets.token_urlsafe(32)
+        refresh_token = secrets.token_urlsafe(32)
+
+        now = time.time()
+        access_expires = now + self.token_expiry
+        refresh_expires = now + self.refresh_token_expiry
+
+        # Store access token
+        self.storage.store_access_token(
+            StoredToken(
+                token=access_token,
+                token_type="access",
+                client_id=_require_client_id(client),
+                user_subject=user_subject,
+                scope=" ".join(authorization_code.scopes),
+                expires_at=access_expires,
+                user_claims=user_claims,
+                resource=authorization_code.resource,
+                signed_in_at=now,
+            )
+        )
+
+        # Store refresh token
+        self.storage.store_refresh_token(
+            StoredToken(
+                token=refresh_token,
+                token_type="refresh",
+                client_id=_require_client_id(client),
+                user_subject=user_subject,
+                scope=" ".join(authorization_code.scopes),
+                expires_at=refresh_expires,
+                user_claims=user_claims,
+                resource=authorization_code.resource,
+                signed_in_at=now,
+            )
+        )
+
+        logger.info(f"Issued tokens for client {client.client_id}")
+
+        return OAuthToken(
+            access_token=access_token,
+            token_type="Bearer",
+            expires_in=self.token_expiry,
+            refresh_token=refresh_token,
+            scope=" ".join(authorization_code.scopes) if authorization_code.scopes else None,
+        )
+
+    # -------------------------------------------------------------------------
+    # Refresh Token Exchange
+    # -------------------------------------------------------------------------
+
+    async def load_refresh_token(
+        self, client: OAuthClientInformationFull, refresh_token: str
+    ) -> RefreshToken | None:
+        """Load a refresh token for validation."""
+        stored = self.storage.get_refresh_token(refresh_token)
+        if stored is None:
+            return None
+
+        if stored.client_id != client.client_id:
+            logger.warning("Refresh token client mismatch")
+            return None
+
+        return RefreshToken(
+            token=stored.token,
+            client_id=stored.client_id,
+            scopes=stored.scope.split() if stored.scope else [],
+            expires_at=int(stored.expires_at) if stored.expires_at else None,
+            resource=stored.resource,
+        )
+
+    async def exchange_refresh_token(
+        self,
+        client: OAuthClientInformationFull,
+        refresh_token: RefreshToken,
+        scopes: list[str],
+    ) -> OAuthToken:
+        """Exchange refresh token for new tokens (token rotation).
+
+        The identity the original token was issued to is carried across. Without
+        it the new tokens name nobody: the audit trail records an empty user from
+        the first refresh onward, and per-user database credentials cannot be
+        resolved at all -- roughly an hour into every session.
+
+        Raises:
+            TokenError: If the refresh token is not one this server issued
+        """
+        # Recover what the token was issued for before revoking it. The SDK's
+        # RefreshToken carries only the token, client and scopes; the subject and
+        # the claims behind it live in this server's own store.
+        stored_refresh = self.storage.get_refresh_token(refresh_token.token)
+        if stored_refresh is None:
+            logger.warning("Refresh presented for a token this server did not issue")
+            raise TokenError(
+                error="invalid_grant",
+                error_description="Refresh token is not valid",
+            )
+
+        # Revoke old refresh token
+        self.storage.revoke_refresh_token(refresh_token.token)
+
+        # Generate new tokens
+        new_access_token = secrets.token_urlsafe(32)
+        new_refresh_token = secrets.token_urlsafe(32)
+
+        now = time.time()
+        access_expires = now + self.token_expiry
+        refresh_expires = now + self.refresh_token_expiry
+
+        scope_str = " ".join(scopes) if scopes else " ".join(refresh_token.scopes)
+        client_id = client.client_id or stored_refresh.client_id
+        signed_in_at = stored_refresh.signed_in_at or stored_refresh.created_at
+
+        # Store new access token
+        self.storage.store_access_token(
+            StoredToken(
+                token=new_access_token,
+                token_type="access",
+                client_id=client_id,
+                user_subject=stored_refresh.user_subject,
+                scope=scope_str,
+                expires_at=access_expires,
+                user_claims=stored_refresh.user_claims,
+                resource=stored_refresh.resource,
+                signed_in_at=signed_in_at,
+            )
+        )
+
+        # Store new refresh token
+        self.storage.store_refresh_token(
+            StoredToken(
+                token=new_refresh_token,
+                token_type="refresh",
+                client_id=client_id,
+                user_subject=stored_refresh.user_subject,
+                scope=scope_str,
+                expires_at=refresh_expires,
+                user_claims=stored_refresh.user_claims,
+                resource=stored_refresh.resource,
+                signed_in_at=signed_in_at,
+            )
+        )
+
+        logger.info(f"Rotated tokens for client {client.client_id}")
+
+        return OAuthToken(
+            access_token=new_access_token,
+            token_type="Bearer",
+            expires_in=self.token_expiry,
+            refresh_token=new_refresh_token,
+            scope=scope_str,
+        )
+
+    # -------------------------------------------------------------------------
+    # Token Validation
+    # -------------------------------------------------------------------------
+
+    async def load_access_token(self, token: str) -> AccessToken | None:
+        """Validate and load an access token."""
+        if self.pat_verifier is not None and looks_like_token(token):
+            return await self.pat_verifier(token)
+
+        stored = self.storage.get_access_token(token)
+        if stored is None:
+            return None
+
+        return AccessToken(
+            token=stored.token,
+            client_id=stored.client_id,
+            scopes=stored.scope.split() if stored.scope else [],
+            expires_at=int(stored.expires_at) if stored.expires_at else None,
+            resource=stored.resource,
+            # The SDK lets only the principal that opened an MCP session use it
+            # again. Without a subject that principal is just the OAuth client,
+            # which everyone signing in through the same client shares.
+            subject=stored.user_subject,
+        )
+
+    # -------------------------------------------------------------------------
+    # Token Revocation
+    # -------------------------------------------------------------------------
+
+    async def revoke_token(self, token: AccessToken | RefreshToken) -> None:
+        """Revoke an access or refresh token."""
+        if isinstance(token, AccessToken):
+            self.storage.revoke_access_token(token.token)
+        else:
+            self.storage.revoke_refresh_token(token.token)
+        logger.info(f"Revoked token for client {token.client_id}")
+
+    # -------------------------------------------------------------------------
+    # IdP Callback Handling
+    # -------------------------------------------------------------------------
+
+    async def handle_idp_callback(self, code: str, state: str) -> str:
+        """Handle callback from external IdP after user authentication.
+
+        This is called from the /oauth/callback route handler.
+
+        Args:
+            code: Authorization code from the IdP
+            state: State parameter (our internal state with pending auth info)
+
+        Returns:
+            Redirect URL to Claude's callback with our authorization code
+
+        Raises:
+            AuthorizeError: If callback is invalid
+        """
+        # Retrieve pending authorization
+        pending = self.storage.get_pending_auth(state)
+        if pending is None:
+            raise AuthorizeError(
+                error="invalid_request",
+                error_description="Invalid or expired state parameter",
+            )
+
+        # Exchange code with IdP for tokens
+        try:
+            idp_tokens = await self.idp_adapter.exchange_code(
+                code=code,
+                redirect_uri=self.idp_callback_url,
+                code_verifier=pending.idp_code_verifier,
+            )
+        except Exception as e:
+            logger.error(f"IdP code exchange failed: {e}")
+            raise AuthorizeError(
+                error="access_denied",
+                error_description="Authentication failed with identity provider",
+            ) from e
+
+        # Validate IdP token to get user info
+        try:
+            user_info = await self.idp_adapter.validate_token(idp_tokens.access_token)
+            if user_info is None:
+                raise AuthorizeError(
+                    error="access_denied",
+                    error_description="Failed to validate identity",
+                )
+        except AuthorizeError:
+            raise  # Re-raise our own errors
+        except Exception as e:
+            logger.error(f"IdP token validation failed: {e}")
+            raise AuthorizeError(
+                error="access_denied",
+                error_description="Failed to validate identity",
+            ) from e
+
+        # Userinfo carries no groups at Entra; the signed ID token does. Its claims
+        # are checked (signature, issuer, audience, expiry) before they are merged.
+        id_token = getattr(idp_tokens, "id_token", None)
+        if self.id_token_claims is not None and not id_token:
+            # A person is bound to the issuer, which only a validated ID token
+            # vouches for; userinfo's iss is not checked, so it is not trusted.
+            logger.error("The identity provider returned no ID token")
+            raise AuthorizeError(
+                error="access_denied",
+                error_description=(
+                    "The identity provider returned no ID token, so this sign-in cannot "
+                    "be tied to it. Ask an admin to request the openid scope."
+                ),
+            )
+        if self.id_token_claims is not None and id_token:
+            try:
+                id_claims = await self.id_token_claims(id_token)
+            except Exception as e:
+                logger.error(f"ID token validation failed: {e}")
+                raise AuthorizeError(
+                    error="access_denied", error_description="Failed to validate identity"
+                ) from e
+            if id_claims.get("sub") != user_info.subject:
+                logger.error("The ID token names a different subject than userinfo")
+                raise AuthorizeError(
+                    error="access_denied", error_description="Failed to validate identity"
+                )
+            user_info = dataclasses.replace(
+                user_info, raw_claims={**(user_info.raw_claims or {}), **id_claims}
+            )
+
+        # Team mode records each completed sign-in: it creates the user, refreshes
+        # their groups and restarts their token freshness window. If that fails the
+        # sign-in is refused, rather than issuing a token nobody can attribute.
+        if self.on_sign_in is not None:
+            try:
+                outcome = self.on_sign_in(user_info)
+                if inspect.isawaitable(outcome):
+                    await outcome
+            except Exception as e:
+                from ..team_auth import SignInRefused  # deferred: team_auth imports this package
+
+                if isinstance(e, SignInRefused):
+                    raise AuthorizeError(
+                        error="access_denied",
+                        error_description="Your account is disabled; ask an admin.",
+                    ) from e
+                logger.error(f"Recording the sign-in failed: {e}")
+                raise AuthorizeError(
+                    error="server_error",
+                    error_description="Could not record the sign-in",
+                ) from e
+
+        # Generate authorization code for Claude
+        auth_code = secrets.token_urlsafe(32)
+
+        stored_code = StoredAuthCode(
+            code=auth_code,
+            client_id=pending.client_id,
+            redirect_uri=pending.claude_redirect_uri,
+            scope=pending.scope,
+            state=state,
+            code_challenge=pending.code_challenge,
+            code_challenge_method=pending.code_challenge_method,
+            user_subject=user_info.subject,
+            user_claims=user_info.raw_claims or {},
+            resource=pending.resource,
+        )
+        self.storage.store_auth_code(stored_code)
+
+        # Build redirect URL to Claude's callback (use Claude's original state)
+        redirect_url: str = construct_redirect_uri(
+            pending.claude_redirect_uri,
+            code=auth_code,
+            state=pending.claude_state,
+        )
+
+        logger.info(f"IdP callback successful for user {user_info.subject}")
+        return redirect_url

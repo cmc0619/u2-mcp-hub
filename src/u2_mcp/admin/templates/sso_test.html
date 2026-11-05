@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Company sign-in test · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Company sign-in works</h1>
+<table><tbody>
+  <tr><th>Subject</th><td>{{ subject }}</td></tr>
+  <tr><th>Email</th><td>{{ email or "" }}</td></tr>
+  <tr><th>Name</th><td>{{ name or "" }}</td></tr>
+  <tr><th>Groups ({{ groups_claim }})</th><td>
+    {% if groups is none %}<span class="warning">The token says this person is in too many groups to list.
+      {% if graph_overage %}Microsoft Graph could not list them: check its GroupMember.Read.All and User.ReadBasic.All (or Directory.Read.All) application permissions.
+      {% else %}Turn on the Microsoft Graph lookup, or configure Entra to send only the groups assigned to the application.{% endif %}</span>
+    {% elif groups %}{{ groups | join(", ") }}{% else %}None{% endif %}</td></tr>
+</tbody></table>
+<p>Nothing was saved: this test signs nobody in. You can close this window.</p>
+{% endblock %}

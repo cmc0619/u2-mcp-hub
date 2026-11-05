@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Setup: company sign-in · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Set up u2-mcp</h1>
+{% include "setup/_steps.html" %}
+<h2>Company sign-in</h2>
+<p>Optional. With company sign-in, people use their work account for this site and for their AI assistant. You can set it up later under Settings.</p>
+<form method="post" action="/admin/setup/sso/next" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">{{ "Continue" if sso else "Skip this step: local sign-in only" }}</button>
+</form>
+<details class="sso-setup"{% if sso or sso_errors %} open{% endif %}>
+  <summary>{{ "Company sign-in is set up: change it" if sso else "Set up company sign-in now" }}</summary>
+  {% include "partials/sso_form.html" %}
+</details>
+{% endblock %}

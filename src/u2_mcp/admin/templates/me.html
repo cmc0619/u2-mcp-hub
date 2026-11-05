@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}My access · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>My access</h1>
+<h2>My connections</h2>
+{% if connections %}
+<table>
+  <thead><tr><th>Connection</th><th>Role</th><th>What you can do now</th></tr></thead>
+  <tbody>
+  {% for v in connections %}
+    <tr><td>{{ v.connection.name }}{% if v.connection.read_only %} (read-only){% endif %}</td>
+        <td>{{ v.roles | join(", ") }}</td>
+        <td>{% if v.needs_personal_login %}<span class="warning">Nothing yet: you need your own U2 login for this connection.</span> <a href="#u2-login-{{ v.connection.id }}">Set your U2 login</a>{% else %}{{ v.permissions | sort | join(", ") }}{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>You can't use any connection yet. Ask an admin to give you a grant.</p>
+{% endif %}
+{% if u2_logins %}
+<h2>Your U2 login</h2>
+<p class="hint">These connections use each person's own U2 login. Only you set it; admins can see whether it is set, never the password.</p>
+{% for row in u2_logins %}
+<section id="u2-login-{{ row.connection.id }}" class="u2-login">
+<h3>Your U2 login on {{ row.connection.name }}</h3>
+<p>{% if row.login %}Set, last updated {{ row.login.updated_at | when }}.{% else %}<span class="warning">Not set.</span> Your assistant's calls on {{ row.connection.name }} are refused until you set it.{% endif %}</p>
+<form method="post" action="/admin/me/u2-logins/{{ row.connection.id }}" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field"><label for="u2-user-{{ row.connection.id }}">U2 user name</label>
+    <input id="u2-user-{{ row.connection.id }}" type="text" name="u2_user" value="{{ row.login.u2_user if row.login else '' }}" autocomplete="off" required></div>
+  <div class="field"><label for="u2-password-{{ row.connection.id }}">U2 password</label>
+    <input id="u2-password-{{ row.connection.id }}" type="password" name="u2_password" autocomplete="new-password">
+    {% if row.login %}<p class="hint">Leave blank to keep the saved password.</p>{% endif %}</div>
+  <div class="actions">
+    {# Save stays first in the markup so Enter saves; Test is shown first. #}
+    <button type="submit">Save</button>
+    <button type="submit" class="secondary shown-first" formaction="/admin/me/u2-logins/{{ row.connection.id }}/test"
+            hx-post="/admin/me/u2-logins/{{ row.connection.id }}/test"
+            hx-target="#u2-login-test-{{ row.connection.id }}" hx-swap="outerHTML" hx-disabled-elt="this">Test</button>
+    {% if row.login %}<button type="submit" class="danger" form="u2-login-remove-{{ row.connection.id }}"
+            title="Forget your saved U2 login on {{ row.connection.name }}">Remove</button>{% endif %}
+  </div>
+  {% if row.login %}<p class="hint">Remove forgets your saved U2 user and password here. Your assistant's calls on {{ row.connection.name }} are then refused until you save a login again.</p>{% endif %}
+  {% with result_id="u2-login-test-" ~ row.connection.id,
+          result=(result if tested == row.connection.id else none),
+          test_errors=(test_errors if tested == row.connection.id else []),
+          limited=(limited if tested == row.connection.id else false) %}
+  {% include "partials/test_result.html" %}
+  {% endwith %}
+</form>
+{% if row.login %}
+{# Its button sits in the row above (form= attribute); forms cannot nest. #}
+<form id="u2-login-remove-{{ row.connection.id }}" method="post" action="/admin/me/u2-logins/{{ row.connection.id }}/remove" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+</form>
+{% endif %}
+</section>
+{% endfor %}
+{% endif %}
+
+<h2>My tokens</h2>
+<p class="hint">Tokens are for scripts and clients that cannot sign in with a browser. Apps that signed in with your company account are listed under Signed-in apps.</p>
+{% if fresh_until %}<p class="hint">Your tokens work while you keep signing in here with your company account, at least once every {{ freshness_days }} days. Without a new sign-in they pause on {{ fresh_until | when }}. Signing in again reactivates them.</p>{% endif %}
+{% if new_token %}
+<div class="notice" role="status">
+  <p>Copy this token now. It is shown only once.</p>
+  <pre id="new-token">{{ new_token }}</pre>
+</div>
+{% endif %}
+{% if tokens %}
+<table>
+  <thead><tr><th>Name</th><th>Created</th><th>Expires</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tokens %}
+    <tr><td>{{ t.record.name }}</td><td>{{ t.record.created_at | when }}</td>
+        <td>{{ t.record.expires_at | when }}</td>
+        <td>{{ t.record.last_used_at | when }}{% if t.record.last_used_ip %} from {{ t.record.last_used_ip }}{% endif %}</td>
+        <td>{{ t.status }}</td>
+        <td>{% if t.revocable %}
+          <form method="post" action="/admin/me/tokens/{{ t.record.id }}/revoke" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Revoke {{ t.record.name }}</button>
+          </form>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<form method="post" action="/admin/me/tokens" class="form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field"><label for="t-name">Token name</label>
+    <input id="t-name" type="text" name="name" maxlength="64" required placeholder="work laptop"></div>
+  <div class="field"><label for="t-days">Lifetime in days</label>
+    <input id="t-days" type="number" name="days" min="1" {% if max_days %}max="{{ max_days }}"{% endif %} value="{{ default_days }}">
+    {% if max_days %}<p class="hint">At most {{ max_days }} days on this server.</p>{% endif %}</div>
+  <div class="actions"><button type="submit">Create token</button></div>
+</form>
+
+{% if oauth %}
+<h2 id="signed-in-apps">Signed-in apps</h2>
+<p class="hint">Apps that signed in with your company account, such as GitHub Copilot or VS Code. Sign an app out to make it sign in again.</p>
+{% if apps %}
+<table>
+  <thead><tr><th>App</th><th>Signed in</th><th>Last refreshed</th><th>Sign-in expires</th><th></th></tr></thead>
+  <tbody>
+  {% for app in apps %}
+    <tr><td>{{ app.name }}</td><td>{{ app.signed_in_at | when }}</td>
+        <td>{{ app.last_refreshed_at | when }}</td><td>{{ app.expires_at | when }}</td>
+        <td><form method="post" action="/admin/me/apps/sign-out" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="client_id" value="{{ app.client_id }}">
+          <button type="submit" class="danger">Sign out {{ app.name }}</button>
+        </form></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No apps are signed in with your account.</p>
+{% endif %}
+{% endif %}
+
+<h2 id="connect">Connect your MCP client</h2>
+<pre>{{ server_url }}</pre>
+{% if mcp_sign_in %}
+<p>Add this address to your MCP client. It opens your company sign-in automatically.</p>
+{% else %}
+<p>Add this address to your MCP client with a token from My tokens: company sign-in for MCP clients is not set up on this server.</p>
+{% endif %}
+<p>For scripts or clients that can't sign in, create a token above and send it as the header <code>Authorization: Bearer &lt;token&gt;</code>. For example:</p>
+<pre>{{ curl_example }}</pre>
+{% endblock %}

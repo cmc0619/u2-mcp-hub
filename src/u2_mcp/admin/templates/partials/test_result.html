@@ -1,0 +1,5 @@
+<div id="{{ result_id | default('test-result') }}" class="result{% if result %}{{ ' ok' if result.ok else ' bad' }}{% endif %}" role="status" aria-live="polite">
+  {% if result %}<p>{{ "Test passed: " if result.ok else "Test failed: " }}{{ result.message }}</p>{% endif %}
+  {% if test_errors and limited %}<p class="error">{{ test_errors | join(" ") }}</p>
+  {% elif test_errors %}<p class="error">Fix these first: {{ test_errors | join(" ") }}</p>{% endif %}
+</div>

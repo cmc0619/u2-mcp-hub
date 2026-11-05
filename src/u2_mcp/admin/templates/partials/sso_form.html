@@ -1,0 +1,42 @@
+{% from "partials/fields.html" import checkbox, select, text %}
+{% set entra = sso_form.provider != "oidc" %}
+<form method="post" action="{{ sso_action }}" class="sso-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {{ select("provider", "Provider", sso_form.provider, sso_providers, sso_errors) }}
+  <div class="sso-entra">
+    {{ text("tenant_id", "Directory (tenant) ID", sso_form.tenant_id, sso_errors, hint="On the app registration's Overview page.") }}
+  </div>
+  <div class="sso-oidc">
+    {{ text("discovery_url", "Discovery URL", sso_form.discovery_url, sso_errors, type="url", hint="Ends in /.well-known/openid-configuration.") }}
+  </div>
+  {{ text("client_id", "Application (client) ID" if entra else "Client ID", sso_form.client_id, sso_errors, required=true) }}
+  {{ text("client_secret", "Client secret (Value, not Secret ID)" if entra else "Client secret", "", sso_errors, type="password", autocomplete="new-password", hint=sso_secret_hint) }}
+  <p class="hint sso-secret-entra">Use the secret's Value, not its Secret ID.</p>
+  {{ text("groups_claim", "Groups claim", sso_form.groups_claim, sso_errors, hint="The ID-token claim that lists a person's groups. Entra and Okta use groups.") }}
+  <div class="sso-entra">
+    {{ checkbox("graph_overage", "Entra only: look up groups through Microsoft Graph when someone is in too many groups to fit in the token", sso_form.graph_overage, hint="Needs the GroupMember.Read.All and User.ReadBasic.All application permissions (or Directory.Read.All), granted by an Entra admin. When off, such people sign in with no groups, and the Users page flags them.") }}
+  </div>
+  <div class="field">
+    <label for="f-sso-admin-callback">Redirect URI for this admin site</label>
+    <input id="f-sso-admin-callback" type="text" readonly value="{{ sso_admin_callback }}">
+    <p class="hint sso-entra">Add this as a Web redirect URI on the app registration's Authentication page.</p>
+    <p class="hint sso-oidc">Register this as a redirect URI with your identity provider.</p>
+  </div>
+  <div class="field">
+    <label for="f-sso-mcp-callback">Redirect URI for MCP clients (VS Code and others)</label>
+    <input id="f-sso-mcp-callback" type="text" readonly value="{{ sso_mcp_callback }}">
+    <p class="hint">Register this one too, the same way.</p>
+  </div>
+  <p class="hint">{{ sso_restart_note }}</p>
+  <div class="actions">
+    <button type="submit">{{ sso_submit_label }}</button>
+    {% if sso %}<button type="submit" class="secondary" form="sso-test-form">Test sign-in</button>{% endif %}
+    {% if sso and sso_clear_inline %}<button type="submit" class="danger" form="sso-clear-form">Turn off company sign-in</button>{% endif %}
+  </div>
+</form>
+{# Their buttons sit in the row above (form= attribute); forms cannot nest. #}
+{% if sso %}
+<form id="sso-test-form" method="post" action="/admin/settings/sso/test" target="_blank" rel="noopener noreferrer" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+</form>
+{% endif %}

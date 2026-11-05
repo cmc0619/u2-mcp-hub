@@ -1,0 +1,7 @@
+<ol class="steps" aria-label="Setup steps">
+  {% for name, title, reachable in steps %}
+  <li class="{{ 'current' if name == step else '' }}">
+    {% if reachable and name != step %}<a href="/admin/setup/{{ name }}">{{ title }}</a>{% else %}{{ title }}{% endif %}
+  </li>
+  {% endfor %}
+</ol>

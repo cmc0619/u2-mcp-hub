@@ -1,0 +1,9 @@
+# Caddy terminates TLS (automatic certificates) and forwards to u2-mcp.
+# Set U2_SITE_ADDRESS to the host name people use, e.g. u2-mcp.example.com.
+# Caddy replaces any X-Forwarded-For the client sent, and sets X-Forwarded-Proto.
+{$U2_SITE_ADDRESS:u2-mcp.example.com} {
+	reverse_proxy u2-mcp:8000 {
+		# Streamable HTTP keeps responses open: pass bytes on as they arrive.
+		flush_interval -1
+	}
+}

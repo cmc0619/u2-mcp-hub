@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}u2-mcp admin{% endblock %}</title>
+  <link rel="stylesheet" href="/admin/static/styles.css">
+  <script src="/admin/static/htmx.min.js" defer></script>
+  <script src="/admin/static/copy.js" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+  <header class="top">
+    <a class="brand" href="/admin/">u2-mcp admin</a>
+    {% if user and setup_complete %}
+    <nav>
+      {% if user.is_admin %}
+      <a href="/admin/connections">Connections</a>
+      <a href="/admin/knowledge">Knowledge</a>
+      <a href="/admin/users">Users</a>
+      {% if groups_visible %}<a href="/admin/groups">Groups</a>{% endif %}
+      <a href="/admin/roles">Roles</a>
+      <a href="/admin/audit">Audit</a>
+      <a href="/admin/settings">Settings</a>
+      {% endif %}
+      <a href="/admin/me">My access</a>
+    </nav>
+    {% endif %}
+    {% if user %}
+    <form method="post" action="/admin/sign-out" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <span class="who">{{ user.label }}</span>
+      <button type="submit">Sign out</button>
+    </form>
+    {% endif %}
+  </header>
+  <main>
+    {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+    {% if problem %}<p class="alert" role="alert">{{ problem }}</p>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ topic.topic }} · Knowledge · u2-mcp admin{% endblock %}
+{% block content %}
+<h1>Delete {{ topic.topic }}?</h1>
+<p>{{ label }}</p>
+<p>This removes this entire topic from this database's saved knowledge. It cannot be undone. Other topics and databases are unchanged.</p>
+{% if error %}<p class="alert" role="alert">{{ error }} <a href="{{ delete_url }}">Reload the confirmation</a> to review the latest saved content.</p>{% endif %}
+<pre>{{ topic.content }}</pre>
+<form method="post" action="{{ delete_url }}" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="revision" value="{{ revision }}">
+  <button type="submit" class="danger">Confirm delete topic</button>
+  <a href="{{ topic_url }}">Cancel</a>
+</form>
+{% endblock %}
