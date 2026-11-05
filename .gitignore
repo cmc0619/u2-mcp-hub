@@ -172,3 +172,5 @@ credentials.json
 
 # Local logs
 logs/
+# Written by the Docker build (python -m u2_mcp.version).
+src/u2_mcp/BUILD_COMMIT

@@ -11,6 +11,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse
 
 from ..setup_code import is_setup_complete
+from ..version import running_version
 from .context import AdminContext
 from .problems import PROBLEMS
 from .sso_services import groups_visible
@@ -55,6 +56,7 @@ def _environment() -> Environment:
         lstrip_blocks=True,
     )
     env.filters["when"] = when
+    env.globals["running_version"] = running_version
     return env
 
 

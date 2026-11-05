@@ -1,4 +1,9 @@
-.git
+# Only what tells the build which commit it is: HEAD and the branch refs.
+.git/*
+!.git/HEAD
+!.git/refs
+!.git/refs/**
+!.git/packed-refs
 .venv
 .superpowers
 **/__pycache__
