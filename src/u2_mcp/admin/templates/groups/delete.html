@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ group.label or group.external_id }} · u2-mcp admin{% endblock %}
+{% block content %}
+<p><a href="{{ back }}">Back to groups</a></p>
+<h1>Delete {{ group.label or group.external_id }}</h1>
+<p>Its members lose the access this group gives. These grants are deleted with it:</p>
+<ul>{% for connection, role in grants %}<li>{{ connection.name }}: {{ role }}</li>{% endfor %}</ul>
+<p class="hint">If a sign-in names this group again, it comes back with no access. The deletion is in the audit log.</p>
+<form method="post" action="/admin/groups/{{ group.id }}/delete" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="next" value="{{ back }}">
+  <button type="submit" class="danger">Delete {{ group.label or group.external_id }} and its grants</button>
+  <a class="button secondary" href="{{ back }}">Cancel</a>
+</form>
+{% endblock %}

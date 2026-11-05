@@ -12,6 +12,10 @@ them are written up in [docs/hardening.md](docs/hardening.md).
 
 ### Added
 
+- Groups can be found and deleted: a **Last seen** column, filters by text,
+  access, last seen and (with more than one) provider, and **Delete** on every
+  row. A group with access asks first and its grants go with it. Audited as
+  `group.delete`.
 - The admin site's footer shows which code is running to signed-in people:
   `u2-mcp 0.9.0 · 1a2b3c4`. The Docker build stamps the commit, read from the
   build context's .git files (only HEAD and the refs get past .dockerignore).

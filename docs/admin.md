@@ -187,7 +187,12 @@ address filled in:
 `https://u2-mcp.example.com`.
 
 Once company sign-in is set up, a **Groups** tab appears in the menu. It lists
-the groups seen at sign-in, so you can label them and give them grants.
+the groups seen at sign-in, so you can label them and give them grants. Each
+group shows its access underneath and when a sign-in last carried it. A group
+deleted in your directory stops being seen, so filter on **Last seen** (or **No
+access**, or **Provider** after a provider change) to find old ones, then
+**Delete**. A group with access asks first and takes its grants with it. If a
+sign-in names a deleted group again, it comes back with no access.
 
 ### Microsoft Entra ID
 

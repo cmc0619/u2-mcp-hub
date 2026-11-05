@@ -818,8 +818,29 @@ class Store:
     @staticmethod
     def _group(row: sqlite3.Row) -> Group:
         return Group(
-            id=row["id"], issuer=row["issuer"], external_id=row["external_id"], label=row["label"]
+            id=row["id"],
+            issuer=row["issuer"],
+            external_id=row["external_id"],
+            label=row["label"],
+            last_seen_at=row["last_seen_at"],
         )
+
+    def delete_group(self, group_id: int) -> int:
+        """Delete a group, its grants and who was in it.
+
+        Returns:
+            How many grants went with it
+
+        Raises:
+            StoreError: If the group does not exist
+        """
+        with self._tx() as conn:
+            grants = conn.execute(
+                "DELETE FROM grants WHERE subject_type = 'group' AND subject_id = ?", (group_id,)
+            ).rowcount
+            if conn.execute("DELETE FROM groups WHERE id = ?", (group_id,)).rowcount == 0:
+                raise StoreError("That group no longer exists.")
+        return grants
 
     def set_group_label(self, group_id: int, label: str | None) -> None:
         """Set the name admins see for a group; None shows its claim value.

@@ -172,3 +172,79 @@ def test_every_permission_row_names_its_tools(client: TestClient, ctx: AdminCont
         assert tool in page
     assert "Reserved for BASIC tools" not in page
     assert "No tools" not in page
+
+
+class TestDeletingGroups:
+    """Old or gone groups can be found by filter and deleted, with or without access."""
+
+    @staticmethod
+    def _groups(ctx: AdminContext) -> dict[str, int]:
+        user = ctx.store.get_or_create_sso_user("s", issuer="https://idp.example")
+        ctx.store.record_sso_login(user.id, ["eng", "old"])
+        return {g.external_id: g.id for g in ctx.store.list_groups()}
+
+    def test_a_group_with_no_access_is_deleted_at_once(
+        self, client: TestClient, ctx: AdminContext
+    ) -> None:
+        ids = self._groups(ctx)
+        token = csrf_from(client.get("/admin/groups").text)
+
+        response = client.post(
+            f"/admin/groups/{ids['old']}/delete",
+            data={"csrf_token": token, "next": "/admin/groups?access=none"},
+            follow_redirects=False,
+        )
+
+        assert response.headers["location"] == "/admin/groups?access=none&notice=group_deleted"
+        assert ctx.store.get_group(ids["old"]) is None
+        assert ctx.store.recent_audit(1)[0]["action"] == "group.delete"
+
+    def test_a_group_with_access_is_confirmed_and_its_grants_go_too(
+        self, client: TestClient, ctx: AdminContext
+    ) -> None:
+        ids = self._groups(ctx)
+        prod = ctx.store.add_connection(name="Prod", host="h", port=1, service="uvcs", account="A")
+        viewer = ctx.store.get_role_by_name("Viewer")
+        assert viewer is not None
+        grant = ctx.store.add_grant(
+            connection_id=prod.id, subject_type="group", subject_id=ids["eng"], role_id=viewer.id
+        )
+        listing = client.get("/admin/groups").text
+        assert f'href="/admin/groups/{ids["eng"]}/delete?next=' in listing  # asks first
+
+        confirm = client.get(f"/admin/groups/{ids['eng']}/delete").text
+        assert "Prod: Viewer" in confirm
+        client.post(f"/admin/groups/{ids['eng']}/delete", data={"csrf_token": csrf_from(confirm)})
+
+        assert ctx.store.get_group(ids["eng"]) is None
+        assert ctx.store.get_grant(grant.id) is None
+
+    @pytest.mark.parametrize(
+        ("query", "shown", "hidden"),
+        [
+            ("access=none", "old", "eng"),
+            ("access=with", "eng", "old"),
+            ("q=OL", "old", "eng"),
+            ("unseen=30", "old", "eng"),
+        ],
+    )
+    def test_the_filters(
+        self, client: TestClient, ctx: AdminContext, query: str, shown: str, hidden: str
+    ) -> None:
+        ids = self._groups(ctx)
+        prod = ctx.store.add_connection(name="Prod", host="h", port=1, service="uvcs", account="A")
+        viewer = ctx.store.get_role_by_name("Viewer")
+        assert viewer is not None
+        ctx.store.add_grant(
+            connection_id=prod.id, subject_type="group", subject_id=ids["eng"], role_id=viewer.id
+        )
+        with ctx.store.locked() as conn:  # "old" was last seen 60 days ago
+            conn.execute(
+                "UPDATE groups SET last_seen_at = last_seen_at - 60 * 86400 WHERE id = ?",
+                (ids["old"],),
+            )
+
+        page = client.get(f"/admin/groups?{query}").text
+
+        assert f"<code>{shown}</code>" in page
+        assert f"<code>{hidden}</code>" not in page
